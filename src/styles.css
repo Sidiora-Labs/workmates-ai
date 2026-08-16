@@ -1,0 +1,411 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+
+  --sidebar: #f5f5f7;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+
+  --primary: #1d1d1f;
+  --primary-foreground: #fafafa;
+  --secondary: #f0f0f3;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f2f2f5;
+  --muted-foreground: #66666e;
+  --accent: #ebebef;
+  --accent-foreground: #1d1d1f;
+
+  --brand: #5b6cff;
+  --brand-foreground: #ffffff;
+  --brand-soft: #eef0ff;
+  --brand-ink: #4a59e6;
+
+  --destructive: #c0272d;
+  --destructive-foreground: #ffffff;
+  --success: #1f7048;
+  --warning: #8f5a09;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --input: rgba(0, 0, 0, 0.12);
+  --ring: #4a59e6;
+
+  --shadow-color: rgba(24, 24, 27, 0.08);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: #1c1c1e;
+  --foreground: #f2f2f5;
+
+  --sidebar: #222225;
+  --card: #232326;
+  --card-foreground: #f2f2f5;
+  --popover: #28282c;
+  --popover-foreground: #f2f2f5;
+
+  --primary: #f2f2f5;
+  --primary-foreground: #1c1c1e;
+  --secondary: #303035;
+  --secondary-foreground: #f2f2f5;
+  --muted: #28282c;
+  --muted-foreground: #a1a1aa;
+  --accent: #303035;
+  --accent-foreground: #f2f2f5;
+
+  --brand: #8f9bff;
+  --brand-ink: #8f9bff;
+  --brand-foreground: #14151f;
+  --brand-soft: rgba(143, 155, 255, 0.16);
+
+  --destructive: #ff7b81;
+  --destructive-foreground: #1a0d0e;
+  --success: #3ddc91;
+  --warning: #f5a524;
+
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #8f9bff;
+
+  --shadow-color: rgba(0, 0, 0, 0.5);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sidebar: var(--sidebar);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter Variable",
+    "Inter", "Segoe UI", system-ui, sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
+
+  --ease-out-quart: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-quart: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --animate-panel-in: panel-in 0.22s var(--ease-out-quart);
+  --animate-pop-in: pop-in 0.18s var(--ease-out-quart);
+  --animate-fade-in: fade-in 0.15s ease-out;
+  --animate-rise-in: rise-in 0.2s var(--ease-out-quart);
+  --animate-flip-in: flip-in 0.28s var(--ease-out-quart);
+  --animate-send-in: send-in 0.22s var(--ease-out-quart);
+  --animate-receive-in: receive-in 0.24s var(--ease-out-quart);
+  --animate-pop: pop 0.26s var(--ease-out-quart);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    letter-spacing: -0.008em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+  }
+
+  button {
+    cursor: default;
+  }
+
+  html.mac-vibrancy body {
+    background-color: transparent;
+  }
+  .sidebar-surface {
+    background-color: var(--sidebar);
+  }
+  html.mac-vibrancy .sidebar-surface {
+    background-color: color-mix(in srgb, var(--sidebar) 45%, transparent);
+  }
+
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--background),
+      0 0 0 4px var(--ring);
+    border-radius: inherit;
+  }
+  input:focus-visible,
+  textarea:focus-visible {
+    box-shadow: none;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 20%, transparent);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground) 32%, transparent);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--brand) 24%, transparent);
+}
+
+@keyframes panel-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes pop-in {
+  from { transform: scale(0.97) translateY(4px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rise-in {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes flip-in {
+  from { transform: rotateX(-38deg) translateY(-6px); opacity: 0; }
+  to { transform: rotateX(0) translateY(0); opacity: 1; }
+}
+@keyframes send-in {
+  from { transform: translate3d(10px, 8px, 0) scale(0.98); opacity: 0; }
+  to { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+}
+@keyframes receive-in {
+  from { transform: translate3d(-8px, 8px, 0) scale(0.98); opacity: 0; }
+  to { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+}
+@keyframes pop {
+  0% { transform: scale(0.86); }
+  60% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.call-speaking-ring {
+  animation: call-ring 1.6s ease-in-out infinite;
+}
+@keyframes call-ring {
+  0%, 100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--ring-tint, var(--brand)) 28%, transparent); }
+  50% { box-shadow: 0 0 0 18px color-mix(in srgb, var(--ring-tint, var(--brand)) 8%, transparent); }
+}
+
+@keyframes intro-block-in {
+  from {
+    transform: translate(var(--from-x, 0px), var(--from-y, -100vh));
+    opacity: 1;
+  }
+  70% {
+    transform: translate(calc(var(--from-x, 0px) * -0.012), calc(var(--from-y, 0px) * -0.012));
+  }
+  to { transform: translate(0, 0); opacity: 1; }
+}
+.intro-block-in {
+  animation: intro-block-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  opacity: 0;
+}
+
+.intro-fade-in {
+  animation: intro-fade 400ms ease-out both;
+}
+@keyframes intro-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.intro-rise {
+  animation: intro-rise 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes intro-rise {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.intro-hover {
+  animation: intro-hover 2.6s ease-in-out infinite;
+}
+@keyframes intro-hover {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50% { transform: translateY(-9px) rotate(1.5deg); }
+}
+
+.intro-ellipsis::after {
+  content: "";
+  animation: intro-ellipsis 1.4s steps(4) infinite;
+}
+@keyframes intro-ellipsis {
+  0% { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75% { content: "..."; }
+}
+
+.intro-progress {
+  animation: intro-progress 1.5s ease-in-out infinite;
+}
+@keyframes intro-progress {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(420%); }
+}
+
+.intro-caret {
+  animation: intro-caret 1s steps(1) infinite;
+}
+@keyframes intro-caret {
+  50% { opacity: 0; }
+}
+
+.intro-shake {
+  animation: intro-shake 1620ms linear both;
+}
+@keyframes intro-shake {
+  0% { transform: translate(0, 0) rotate(0); }
+  5% { transform: translate(-1px, 1px) rotate(-0.2deg); }
+  10% { transform: translate(1px, -1px) rotate(0.2deg); }
+  15% { transform: translate(-1px, -1px) rotate(-0.3deg); }
+  20% { transform: translate(1px, 1px) rotate(0.3deg); }
+  25% { transform: translate(-2px, 1px) rotate(-0.4deg); }
+  30% { transform: translate(2px, -1px) rotate(0.4deg); }
+  35% { transform: translate(-2px, -2px) rotate(-0.5deg); }
+  40% { transform: translate(2px, 2px) rotate(0.5deg); }
+  45% { transform: translate(-2px, 2px) rotate(-0.6deg); }
+  50% { transform: translate(3px, -2px) rotate(0.6deg); }
+  55% { transform: translate(-3px, -2px) rotate(-0.7deg); }
+  60% { transform: translate(3px, 2px) rotate(0.8deg); }
+  65% { transform: translate(-3px, 2px) rotate(-0.9deg); }
+  70% { transform: translate(4px, -2px) rotate(0.9deg); }
+  75% { transform: translate(-4px, -3px) rotate(-1deg); }
+  80% { transform: translate(4px, 3px) rotate(1.1deg); }
+  85% { transform: translate(-5px, 3px) rotate(-1.2deg); }
+  90% { transform: translate(5px, -3px) rotate(1.3deg); }
+  95% { transform: translate(-5px, 2px) rotate(-1.2deg); }
+  100% { transform: translate(0, 0) rotate(0); }
+}
+
+.intro-click {
+  animation: intro-click 500ms ease-out both;
+}
+@keyframes intro-click {
+  from { transform: scale(0.3); opacity: 0.9; }
+  to { transform: scale(1.4); opacity: 0; }
+}
+
+.intro-sweep {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    color-mix(in srgb, var(--brand) 55%, transparent) 40deg,
+    transparent 90deg
+  );
+  filter: blur(18px);
+  animation: intro-sweep 2.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+  transition: opacity 400ms ease-out;
+}
+@keyframes intro-sweep {
+  from { transform: rotate(0deg); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 0.9; }
+  to { transform: rotate(360deg); opacity: 0.18; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+.titlebar-drag :is(button, a, input, textarea, select, [role="button"], [role="tab"], [contenteditable]) {
+  -webkit-app-region: no-drag;
+}
+
+.term-host .xterm {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  height: 100%;
+  padding: 4px 0 4px 12px;
+}
+.term-host .xterm-screen {
+  flex: 0 0 auto;
+}
+.term-host .xterm-scrollable-element {
+  align-self: stretch;
+  width: 100%;
+}
+.term-host .xterm,
+.term-host .xterm-viewport,
+.term-host .xterm-screen {
+  background-color: var(--card) !important;
+}
+.term-host .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  border-radius: 999px;
+  left: auto !important;
+  right: 3px !important;
+  width: 6px !important;
+}
