@@ -1,0 +1,150 @@
+# workmates-02-routines — feature spec. Requirements, design, then the task list.
+
+[meta]
+feature = "workmates-02-routines"
+intro   = "Work an agent or a room does on a clock: a prompt, a local time and a set of weekdays, fired by a server tick into a background lane and recorded so a routine that fails never fails silently."
+
+[req.1]
+title = "A schedule a person can read"
+story = "As a user, I want to schedule a routine as a time plus weekdays, or a single date, so that I can read it on a phone at arm's length without learning cron."
+ac_1  = "WHEN a routine is saved THE server SHALL require a target (agent or room), a prompt and a valid HH:MM time, and answer 400 otherwise."
+ac_2  = "WHEN days is empty THE routine SHALL run every day; WHEN days lists weekdays 0 to 6 THE routine SHALL run only on those, deduplicated and range-checked."
+ac_3  = "WHEN repeat is once THE routine SHALL require a YYYY-MM-DD date, run on that date and then disable itself while staying as a record."
+ac_4  = "WHEN a prompt exceeds 2000 characters THE server SHALL cut it rather than reject it; a name is capped at 60 characters; durationMin is clamped between 15 and 480 on a 15-minute grid."
+ac_5  = "WHEN a routine is listed THE server SHALL add a readable summary such as Weekdays at 09:00 and a computed nextRunAt, null when disabled."
+
+[req.2]
+title = "Fires exactly once per slot"
+story = "As a user, I want a routine to run once when it is due and never twice so that a 30-second tick, a long turn or a sleeping Mac cannot double a run."
+ac_1  = "WHEN the tick runs every 30 seconds THE scheduler SHALL fire a routine only when its most recent slot is at or before now, within a two-hour grace, and lastRunAt is before that slot."
+ac_2  = "WHEN the Mac wakes after missing several slots THE routine SHALL fire once for the most recent slot only, and not at all if that slot is more than two hours old."
+ac_3  = "WHEN a routine is dispatched THE scheduler SHALL record lastRunAt before starting the turn so a turn longer than the tick cannot start twice."
+ac_4  = "WHEN the target is busy THE scheduler SHALL leave it alone and retry on a later tick."
+ac_5  = "WHEN the target agent is archived or held, or a room has nobody able to answer, THE scheduler SHALL skip without recording a run so a once routine does not burn its single run."
+ac_6  = "WHEN a client PATCHes a routine THE server SHALL never accept lastRunAt from it."
+
+[req.3]
+title = "Runs are history"
+story = "As a user, I want to see what each run did so that a routine I cannot inspect is not one I have to trust blindly."
+ac_1  = "WHEN a run starts THE store SHALL append a run with state running, keeping at most the last 20 per routine."
+ac_2  = "WHEN the turn completes THE server SHALL close the run with the agent's last message cut to 300 characters as the summary, or the redacted error, and append a routine.ran entry to the ledger."
+ac_3  = "WHEN Workmates starts THE store SHALL settle any run left running by a crash to failed with the message Workmates closed before this run finished."
+ac_4  = "WHEN Run now is pressed THE server SHALL run the routine immediately, answer 202, and record it in history like a scheduled run; 409 if the agent's Routines lane is busy."
+ac_5  = "WHEN a routine's agent or room is deleted THE server SHALL remove the routine rather than let it fire into the void."
+
+[req.4]
+title = "The Schedules calendar"
+story = "As a user, I want a calendar of every routine with drag to reschedule so that I can see the rhythm of my agents and move things without a form."
+ac_1  = "WHEN the Automations panel opens THE Schedules tab SHALL show day, week and month views projected from time, days or date, with disabled routines in a Paused strip."
+ac_2  = "WHEN a chip is dragged and dropped THE client SHALL snap to 15 minutes and PATCH the time, moving date for a once routine or swapping the weekday for a specific-days routine."
+ac_3  = "WHEN empty grid is clicked THE create dialog SHALL open prefilled with that hour, weekday and date."
+ac_4  = "WHEN a chip is clicked THE details popover SHALL offer enable, Run now, Delete and the last 20 runs with state, duration and summary or error."
+ac_5  = "WHEN a routine is created in the dialog THE form SHALL require prompt, target, time and, for once, a date, and offer Runs on for agent targets only."
+
+[design]
+overview = "server/stores/routines.ts holds the pure schedule maths and the store: parseTime, lastScheduledBefore, nextScheduledAfter, isDue with GRACE_MS 2 h, normalize with MAX_ROUTINE_PROMPT 2000 and MAX_ROUTINES 50, describe for summaries, beginRun/endRun with MAX_RUNS 20, settleOrphanRuns at boot, removeForTarget on deletion; routines.json under ~/.workmates written 0o600 and re-validated by isRoutine on load. server/index.ts runs runDueRoutines every 30 s plus once 5 s after boot: room targets post the prompt to the room, agent targets reuse or create an idle lane titled Routines via backgroundTaskId without activating it, markRan happens before startTurn, openRuns maps lane to run and the turn.completed fold closes it with the last bot message and a routine.ran ledger entry. Routes: GET/POST /api/routines, PATCH/DELETE /api/routines/:id, POST /api/routines/:id/run; broadcasts kind routines, which the panels refetch on rather than fold. UI: AutomationsPanel.tsx Schedules tab (day/week/month, 06:00 to 23:00 gutter, now line, drag with a 5 px threshold snapped to 15 min, RoutineDetails with RunHistory), RoutinesDialog.tsx (list and create form), RoutinesSection.tsx (the per-agent block in ComputerPanel, also opened pinned from RoomView)."
+modules  = ["server/stores/routines.ts", "server/index.ts", "src/components/workspace/AutomationsPanel.tsx", "src/components/workspace/RoutinesDialog.tsx", "src/components/workspace/RoutinesSection.tsx"]
+routes   = ["GET /api/routines", "POST /api/routines -> 201 | 400 | 404 | 507", "PATCH /api/routines/:id", "DELETE /api/routines/:id", "POST /api/routines/:id/run -> 202 | 409"]
+limits   = ["MAX_ROUTINES = 50", "MAX_ROUTINE_PROMPT = 2000", "MAX_RUNS = 20", "GRACE_MS = 2 h", "tick 30 s", "durationMin 15..480"]
+invariants = ["A missed run fires once, not N times.", "lastRunAt is what stops a 30 s tick firing the same slot twice; clients never write it.", "A routine aimed at nothing is litter.", "A routine that fails silently is the failure mode this feature exists to end.", "Cron is more expressive and nobody can read it on a phone."]
+
+[documentation]
+mode      = "auto"
+status    = "pending"
+audiences = ["user", "developer"]
+targets   = ["README.md", "docs/**", "CONTRIBUTING.md", "CHANGELOG.md"]
+
+[tasks]
+heading = "Implementation Plan: workmates-02-routines"
+
+[task.1]
+title   = "Schedule maths and the store"
+section = "Slice 1: the store"
+status  = "pending"
+
+[task.1.1]
+title      = "Pure schedule maths"
+status     = "pending"
+wave       = 0
+symbols    = ["parseTime", "lastScheduledBefore", "nextScheduledAfter", "isDue"]
+touches    = ["server/stores/routines.ts"]
+verify_cmd = "node --test test/routines.test.ts"
+do_1       = "Parse HH:MM strictly; find the most recent slot within 7 days and the next one, honouring days and once dates"
+do_2       = "isDue: enabled, slot within GRACE_MS, lastRunAt before the slot"
+do_3       = "describe renders Every day, Weekdays, Weekends, Every Wednesday, Mon, Thu and Once on"
+reqs       = ["1.2", "1.3", "1.5", "2.1", "2.2"]
+
+[task.1.2]
+title      = "Normalise, persist and record runs"
+status     = "pending"
+wave       = 1
+requires   = ["1.1"]
+symbols    = ["normalize", "RoutineStore", "isRoutine"]
+touches    = ["server/stores/routines.ts"]
+verify_cmd = "node --test test/routines.test.ts"
+do_1       = "normalize refuses missing target, prompt or time and clamps prompt, name, days and durationMin"
+do_2       = "routines.json 0o600, malformed entries dropped on load; MAX_ROUTINES 50"
+do_3       = "Runs capped at 20; orphans settled to failed at boot; delete every routine aimed at a removed target"
+reqs       = ["1.1", "1.4", "3.1", "3.3", "3.5"]
+
+[task.2]
+title   = "The tick"
+section = "Slice 2: the server"
+status  = "pending"
+
+[task.2.1]
+title      = "Dispatch due routines"
+status     = "pending"
+wave       = 2
+requires   = ["1.2"]
+symbols    = ["runDueRoutines", "backgroundTaskId", "closeRun", "postToRoom"]
+touches    = ["server/index.ts"]
+verify_cmd = "node --test test/api.test.ts test/activity.test.ts"
+do_1       = "Every 30 s and 5 s after boot; markRan before startTurn; busy targets retried later; archived, held or empty targets skipped without markRan"
+do_2       = "Agent runs go to an idle Routines lane without activating it; room runs post the prompt to the room"
+do_3       = "turn.completed closes the run with the last message and writes routine.ran to the ledger"
+reqs       = ["2.3", "2.4", "2.5", "3.2"]
+
+[task.2.2]
+title      = "Routes"
+status     = "pending"
+wave       = 2
+requires   = ["1.2"]
+symbols    = ["runDueRoutines"]
+touches    = ["server/index.ts", "server/agents/agent-cli.ts"]
+verify_cmd = "node --test test/api.test.ts test/agent-cli.test.ts"
+do_1       = "GET lists with summary and nextRunAt; POST validates target existence and the 50 cap"
+do_2       = "PATCH merges only user-editable fields, never lastRunAt; DELETE removes; POST /run answers 202 or 409"
+do_3       = "Broadcast routines on every change; agents may call the routine routes from the CLI"
+reqs       = ["1.5", "2.6", "3.4"]
+
+[task.3]
+title   = "Schedules in the Automations panel"
+section = "Slice 3: the client"
+status  = "pending"
+
+[task.3.1]
+title      = "Calendar, drag and details"
+status     = "pending"
+wave       = 3
+requires   = ["2.2"]
+symbols    = ["AutomationsPanel", "RoutineDetails", "RunHistory"]
+touches    = ["src/components/workspace/AutomationsPanel.tsx"]
+verify_cmd = "pnpm -s typecheck"
+do_1       = "Day, week and month views projected from time and days; Paused strip; now line; click-to-create prefill"
+do_2       = "Pointer drag with a 5 px threshold snapped to 15 minutes, PATCHing time, date or the swapped weekday"
+do_3       = "Details popover with the enable switch, Run now, Delete and the run history"
+reqs       = ["4.1", "4.2", "4.3", "4.4"]
+
+[task.3.2]
+title      = "Dialog and per-agent section"
+status     = "pending"
+wave       = 3
+requires   = ["2.2"]
+symbols    = ["RoutinesDialog", "RoutinesSection"]
+touches    = ["src/components/workspace/RoutinesDialog.tsx", "src/components/workspace/RoutinesSection.tsx"]
+verify_cmd = "pnpm -s typecheck"
+do_1       = "Create form: target, name, prompt, repeat or once, time, date or day toggles, duration, Runs on for agents"
+do_2       = "List rows with next-run text, enable switch, Run now and Delete; refetch after every write"
+do_3       = "RoutinesSection inside ComputerPanel and pinned from RoomView"
+reqs       = ["4.5"]
