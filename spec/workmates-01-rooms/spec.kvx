@@ -1,0 +1,134 @@
+# workmates-01-rooms — feature spec. Requirements, design, then the task list.
+
+[meta]
+feature = "workmates-01-rooms"
+intro   = "A room is one transcript shared by several agents and the user, with a chain of command: the most senior member that can answer speaks last, reviews the others' work and makes the final call."
+
+[req.1]
+title = "A room is a thread with a roster"
+story = "As a user, I want to put two or more of my agents in a room so that they can work one problem together while each keeps its own memory."
+ac_1  = "WHEN a room is created THE server SHALL require at least 2 real agents and at most 8, answer 400 otherwise, and open it with a system line naming the members."
+ac_2  = "WHEN an agent is in several rooms THE provider session SHALL stay keyed to the agent, so what it heard in a room is still in memory in a direct chat."
+ac_3  = "WHEN a room is stored THE record SHALL live in rooms.json under ~/.workmates (0o600 in a 0o700 directory) and its transcript in messages-<roomId>.json, the room id doubling as the thread id."
+ac_4  = "WHEN an agent is deleted THE server SHALL drop it from every room's roster."
+ac_5  = "WHEN a room is archived THE transcript and members SHALL be kept; only an explicit delete removes anything, and delete cascades to routines and workflows that target the room."
+
+[req.2]
+title = "Who a message reaches"
+story = "As a user, I want to talk to the whole room or to one agent by name so that a message wakes exactly who it is for."
+ac_1  = "WHEN a message names nobody THE message SHALL reach every member that can answer, in room order."
+ac_2  = "WHEN a message contains @Name THE message SHALL reach only those named, matched case-insensitively, longest name first, with each match blanked out so @Bobby Tables never wakes Bo."
+ac_3  = "WHEN a named member is archived THE room SHALL post one notice that it will not answer, and resolve names against the whole roster so naming an archived member is not naming nobody."
+ac_4  = "WHEN leadOnly is set and a user message names nobody THE message SHALL reach only the most senior member that can answer."
+ac_5  = "WHEN an agent speaks THE message SHALL reach only whom it named, never itself, except a kickoff brief marked toAll."
+
+[req.3]
+title = "Juniors first, the senior last"
+story = "As a user, I want the senior agent to speak after the others so that its final call is made on work it actually saw."
+ac_1  = "WHEN several members are to answer THE server SHALL run their turns sequentially in ascending seniority, waiting for each to go idle before the next."
+ac_2  = "WHEN the speaker is the lead THE briefing SHALL say it is the most senior and speaks last, delegates legwork with @Name, verifies rather than restates, makes the call when members disagree, and ends with one short verdict."
+ac_3  = "WHEN the speaker is not the lead THE briefing SHALL name the lead as the one with the final say and instruct the member to end its turn with @Lead and one line."
+ac_4  = "WHEN a turn completes in a room THE server SHALL pass the room to anyone that agent named, up to 3 agent-triggered hops per human message, queueing mid-round handoffs rather than talking over the round."
+ac_5  = "WHEN one member's turn fails or is refused THE others SHALL still run and the refusal SHALL appear as a readable notice, never silence."
+ac_6  = "WHEN the room is fed to a speaker THE transcript SHALL be the last 30 non-deleted, non-queued text messages, labelled by speaker."
+
+[req.4]
+title = "Queued, edited, taken back"
+story = "As a user, I want to keep typing while the room is busy so that my messages are visible at once and run in order."
+ac_1  = "WHEN a message is posted while a dispatch is running THE server SHALL store and broadcast it as queued, answer 202, and run it after the current loop."
+ac_2  = "WHEN a queued message is edited before it runs THE current text SHALL be used; WHEN it is deleted THE run SHALL not happen."
+ac_3  = "WHEN a decision card in a room is answered THE server SHALL send one queued @Name reply and refuse a second concurrent choice with 409."
+ac_4  = "WHEN a human posts THE server SHALL reset every member's hop count so a fresh chain starts."
+
+[req.5]
+title = "Teams, desks and the room screen"
+story = "As a user, I want to hire a team into a room and give it a shared folder so that a room arrives with a lead, a brief and a place to work."
+ac_1  = "WHEN a senior agent proposes a team in a workmates-team fence THE server SHALL turn it into an options card and hire nothing until the user chooses Hire the team."
+ac_2  = "WHEN a team is hired THE server SHALL create the hires at seniority 1 on the cheapest model of the lead's provider, open the room with the lead, and have the lead post its brief to all."
+ac_3  = "WHEN a manifest is imported THE server SHALL validate the folder before creating anything, clamp every member field, and refuse fewer than 2 members; export carries roles and never ids, cursors or transcripts."
+ac_4  = "WHEN a room first dispatches a turn THE desk SHALL be pinned to its cwd or to null forever; a later cwd change answers 409."
+ac_5  = "WHEN the room screen renders with more than one member THE header SHALL show a crown and the sentence that the lead is most senior here and has the final call, computed over the members that can answer."
+ac_6  = "WHEN an agent calls the API THE agent SHALL see the roster of every room but read, post in and change only rooms it is a member of, and delete none."
+
+[design]
+overview = "server/stores/rooms.ts is the store: RoomRecord {id, name, memberIds, leadOnly, archived, section, cwd, pinnedCwd, createdAt}, MAX_MEMBERS 8, create/patch/remove/removeMember/roomsFor/pinCwd over rooms.json, and addressees(text, members) for @-resolution in room order. The engine is in server/index.ts: enqueueRoomPost chains one dispatch loop per room and marks latecomers queued; postToRoomNow resolves reach (mentions, leadOnly, toAll, archived notices) and runs speakInTurn, which sorts by seniority ascending and awaits waitForIdle after each turn; relayMentions hands the room on after a turn with agentHops capped by MAX_AGENT_HOPS 3 and a per-room dispatching queue; leadOf picks the highest seniority with ties to the earliest member; roomBriefing injects the roster, the lead or member paragraph and the labelled 30-message transcript; activeRoom maps a task to its room so provider events land in the right thread. Teams: server/agents/teams.ts extractTeamPlan (MAX_HIRES 4, caps on every field) and the hire, scout, import and manifest routes. Client: src/components/rooms/RoomView.tsx (header with crown line, leadOnly toggle, stream and forum lenses, @ autocomplete, archive or delete sheet, desk field until pinned), NewRoomDialog.tsx (member picker capped at 8 with a live crown, team library, scout, import), TeamHireDialog.tsx (seats, names drawn from NAME_POOL, brief and desk), ForumLens.tsx over src/lib/threads.ts, TeamMap.tsx over src/lib/teamMap.ts; the reducer routes a message by threadId to the room whose id matches."
+modules  = ["server/stores/rooms.ts", "server/index.ts", "server/agents/teams.ts", "src/components/rooms/RoomView.tsx", "src/components/rooms/NewRoomDialog.tsx", "src/components/rooms/TeamHireDialog.tsx", "src/components/rooms/ForumLens.tsx", "src/components/rooms/TeamMap.tsx", "src/lib/threads.ts", "src/lib/teamMap.ts", "src/lib/teamLibrary.ts"]
+routes   = ["GET /api/rooms", "POST /api/rooms -> 201 | 400", "PATCH /api/rooms/:id -> 200 | 400 | 404 | 409", "DELETE /api/rooms/:id", "POST /api/rooms/:id/messages -> 201 | 202 | 400 | 413", "GET /api/rooms/:id/manifest", "POST /api/teams/:messageId/hire", "POST /api/teams/scout (local only)", "POST /api/teams/import", "GET/POST/DELETE /api/team-library"]
+limits   = ["MAX_MEMBERS = 8", "minimum 2 agents", "MAX_AGENT_HOPS = 3", "MAX_HIRES = 4", "transcript window 30 messages", "MAX_MESSAGE_CHARS = 100000"]
+invariants = ["The session is the agent's, not the room's; rooms decide what enters a conversation and never fragment it.", "The user is a member implicitly and never in memberIds.", "Sequential is slower and worth it: the senior cannot make a call on input it never saw.", "A room that goes quiet reads as the product being broken, so refusals become notices.", "Spawning agents spends the user's tokens, so consent is the whole design."]
+
+[documentation]
+mode      = "auto"
+status    = "pending"
+audiences = ["user", "developer"]
+targets   = ["README.md", "docs/**", "CONTRIBUTING.md", "CHANGELOG.md"]
+
+[tasks]
+heading = "Implementation Plan: workmates-01-rooms"
+
+[task.1]
+title   = "The room store"
+section = "Slice 1: the store"
+status  = "pending"
+
+[task.1.1]
+title      = "Records and addressing"
+status     = "pending"
+wave       = 0
+symbols    = ["RoomStore", "addressees"]
+touches    = ["server/stores/rooms.ts"]
+verify_cmd = "node --test test/rooms.test.ts"
+do_1       = "RoomRecord with roster, leadOnly, archived, section, cwd and pinnedCwd; rooms.json 0o600, newest first"
+do_2       = "create dedupes and caps at 8; patch clears cwd and section when present; archived false is stored as absent"
+do_3       = "addressees: case-insensitive, longest name first, each match blanked, results in room order"
+reqs       = ["1.3", "1.4", "1.5", "2.1", "2.2"]
+
+[task.2]
+title   = "The room engine"
+section = "Slice 2: the server"
+status  = "pending"
+
+[task.2.1]
+title      = "Reach, order and handoff"
+status     = "pending"
+wave       = 1
+requires   = ["1.1"]
+symbols    = ["enqueueRoomPost", "postToRoomNow", "speakInTurn", "relayMentions", "leadOf", "roomBriefing", "sayTurnedAway", "waitForIdle"]
+touches    = ["server/index.ts"]
+verify_cmd = "node --test test/chat-interactions.test.ts test/notify.test.ts"
+do_1       = "One dispatch loop per room; latecomers queued and broadcast; deleted queued messages never run"
+do_2       = "Resolve reach with mentions, leadOnly and toAll; notice for archived addressees; juniors first, senior last, idle between"
+do_3       = "Hand the room on after a turn up to 3 hops; queue mid-round handoffs; refusals become notices"
+do_4       = "Brief the lead and the members differently; inject the labelled 30-message transcript only in rooms"
+reqs       = ["1.2", "2.3", "2.4", "2.5", "3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "4.1", "4.2", "4.4"]
+
+[task.2.2]
+title      = "Routes, teams and desks"
+status     = "pending"
+wave       = 2
+requires   = ["2.1"]
+symbols    = ["extractTeamPlan", "normalizeSection", "validateWorkingFolder"]
+touches    = ["server/index.ts", "server/agents/teams.ts", "server/agents/agent-cli.ts"]
+verify_cmd = "node --test test/api.test.ts test/teams.test.ts test/agent-cli.test.ts"
+do_1       = "GET, POST, PATCH, DELETE rooms and POST messages with 201 or 202; agents see rosters of all rooms and transcripts of their own"
+do_2       = "Team plans in a workmates-team fence become an options card; hire at seniority 1 on the cheapest model; import validates the folder first; manifest export carries no ids"
+do_3       = "pinCwd on first dispatch; a later cwd patch is 409; decision cards send one queued @Name reply"
+reqs       = ["1.1", "4.3", "5.1", "5.2", "5.3", "5.4", "5.6"]
+
+[task.3]
+title   = "The room screen"
+section = "Slice 3: the client"
+status  = "pending"
+
+[task.3.1]
+title      = "RoomView, dialogs and lenses"
+status     = "pending"
+wave       = 3
+requires   = ["2.2"]
+symbols    = ["RoomView", "NewRoomDialog", "TeamHireDialog", "ForumLens", "layoutTeamMap", "drawNames"]
+touches    = ["src/components/rooms/RoomView.tsx", "src/components/rooms/NewRoomDialog.tsx", "src/components/rooms/TeamHireDialog.tsx", "src/components/rooms/ForumLens.tsx", "src/components/rooms/TeamMap.tsx", "src/lib/threads.ts", "src/lib/teamMap.ts", "src/lib/teamLibrary.ts", "src/state/reducer.ts"]
+verify_cmd = "node --test test/team-map.test.ts test/threads.test.ts test/reducer.test.ts test/sections.test.ts"
+do_1       = "Header crown line over the members that can answer; leadOnly toggle; archive or delete sheet; desk field until pinned"
+do_2       = "New room dialog capped at 8 with a live crown; team library, scout and import; seat filling with drawn names"
+do_3       = "Stream and forum lenses over one transcript; @ autocomplete; the team map as a door, not a dashboard"
+reqs       = ["5.5"]
