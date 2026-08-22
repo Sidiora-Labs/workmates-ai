@@ -1,0 +1,139 @@
+# workmates-03-skill-catalog — feature spec. Requirements, design, then the task list.
+
+[meta]
+feature = "workmates-03-skill-catalog"
+intro   = "A remote catalog of skills, the markdown an agent follows, compared honestly against what is installed on this machine: every row gets one state and one action, and a skill the user has edited is never silently replaced."
+
+[req.1]
+title = "Read a catalog somebody else served"
+story = "As a user, I want the app to read the published skill catalog safely so that one bad entry costs that entry and not the whole list."
+ac_1  = "WHEN the catalog is a {skills: [...]} document or a bare array THE parser SHALL accept both shapes."
+ac_2  = "WHEN an entry has an id that is not a slug (^[a-z0-9][a-z0-9-]{0,63}$), a duplicate id, an empty body, or a body over 16000 UTF-8 bytes THE parser SHALL drop that entry and keep the rest."
+ac_3  = "WHEN an entry states its own sha256 THE parser SHALL ignore it and record the sha256 of the trimmed body instead, because a stated hash that disagrees with the bytes is not a hash."
+ac_4  = "WHEN the catalog is null, a number, a string or an object without skills THE parser SHALL return an empty catalog rather than throw."
+ac_5  = "WHEN the fetched document exceeds 512 KiB or does not answer with 2xx within 15 seconds THE server SHALL answer the client with 502 and a one-line reason."
+
+[req.2]
+title = "Say what the catalog means for a skill you already have"
+story = "As a user, I want each catalog row to tell me whether I have it, whether it is current, and whether I changed it, so that updating never destroys my own edits."
+ac_1  = "WHEN a skill is not installed THE standing SHALL be available with the action Install and not destructive."
+ac_2  = "WHEN the installed body hashes to the mark recorded at install and the catalog hashes to the same THE standing SHALL be current with no action."
+ac_3  = "WHEN the installed body matches its mark but the catalog has moved on THE standing SHALL be outdated with the action Update and not destructive."
+ac_4  = "WHEN the installed body no longer hashes to its mark THE standing SHALL be edited (or edited-and-outdated when the catalog also moved on) with the action Restore or Replace, marked destructive."
+ac_5  = "WHEN an installed skill carries no registry mark, or a mark without a sha256, THE standing SHALL be yours with the action Replace, marked destructive, since half a record is not a record."
+ac_6  = "WHEN the installed skill is one Workmates ships with THE standing SHALL be bundled with the action Install and not destructive, because the copy shadows the bundled one and deleting it brings the bundled one back."
+ac_7  = "WHEN whitespace at the ends of a body differs THE comparison SHALL not count that as an edit."
+ac_8  = "WHEN counting updates THE count SHALL include only outdated skills, never edited ones."
+
+[req.3]
+title = "Install from the catalog and keep provenance"
+story = "As a user, I want to install, update or restore a skill from the catalog with one action so that the file on disk carries where it came from."
+ac_1  = "WHEN a skill is installed from the catalog THE server SHALL write registry, version and sha256 into the file's frontmatter alongside name and description."
+ac_2  = "WHEN a catalog skill is later edited and saved without those fields THE server SHALL carry the previous registry, version and sha256 forward so an edited catalog skill stays distinguishable from one the user wrote."
+ac_3  = "WHEN POST /api/skills/registry/:id names a skill the catalog does not have THE server SHALL answer 404."
+ac_4  = "WHEN an install would exceed 16000 bytes or the 200-skill cap THE server SHALL answer 413 or 507 respectively and install nothing."
+ac_5  = "WHEN a skill is installed THE server SHALL broadcast a skills event and record a skill.installed activity entry naming the skill and version."
+
+[req.4]
+title = "The catalog screen"
+story = "As a user, I want the Skills panel to show the catalog with the server's own words on every button so that what a button says and what it does cannot drift apart."
+ac_1  = "WHEN the catalog loads THE row chip SHALL read Installed, Update, Edited here, Yours or Bundled according to the standing, and nothing for available."
+ac_2  = "WHEN a standing has an action THE button label SHALL be the server's action string verbatim, styled as a warning with a triangle when destructive."
+ac_3  = "WHEN a standing is destructive THE detail view SHALL append that going ahead replaces what is on this machine."
+ac_4  = "WHEN the Catalog tab is not open THE Skills panel SHALL still show the number of available updates as a badge, fetched once on mount."
+ac_5  = "WHEN Refresh is pressed THE client SHALL request the catalog with refresh=1, bypassing the 30-minute cache."
+
+[design]
+overview = "The comparison is pure and lives in server/agents/skill-registry.ts: hashBody trims then sha256s; parseCatalog normalises and caps every field and recomputes every hash; standing decides in a fixed order (not installed, bundled, no mark, edited-and-outdated, edited, outdated, current); listing pairs each entry with the installed record; updateCount counts outdated only; markFor is what gets written on install and read on every comparison. Fetching and the 30-minute TTL cache live in server/index.ts (loadCatalog, installedMarks) behind GET /api/skills/registry and POST /api/skills/registry/:id; the URL is REGISTRY_URL unless WORKMATES_SKILLS_URL overrides it, which is how the API tests serve a local catalog. Disk I/O is server/agents/skills.ts: one markdown file per skill under ~/.workmates/skills, 0o600 in a 0o700 directory, ids slugified so they can never escape the directory, the install mark in frontmatter. The UI is src/components/settings/SkillCatalog.tsx inside SkillsPanel.tsx; it renders state chips and the server's action string and never invents its own wording."
+modules  = ["server/agents/skill-registry.ts", "server/agents/skills.ts", "server/index.ts", "src/components/settings/SkillCatalog.tsx", "src/components/settings/SkillsPanel.tsx"]
+routes   = ["GET /api/skills/registry[?refresh=1] -> {skills, updates} | 502", "POST /api/skills/registry/:id -> {skill} | 404 | 413 | 507 | 502", "DELETE /api/skills/:id"]
+limits   = ["CATALOG_TTL_MS = 30 min", "MAX_CATALOG_BYTES = 512 KiB", "MAX_ENTRY_BODY = 16000 bytes", "MAX_SKILL_BYTES = 16000", "MAX_USER_SKILLS = 200", "fetch timeout 15 s"]
+invariants = ["A stated hash is never trusted; the body is hashed locally.", "Nothing is ever fetched and installed on the app's own initiative.", "The server decides the words on the button; the client repeats them.", "An edited skill is its own state; replacing it is a separate, destructive act."]
+
+[documentation]
+mode      = "auto"
+status    = "pending"
+audiences = ["user", "developer"]
+targets   = ["README.md", "docs/**", "CONTRIBUTING.md", "CHANGELOG.md"]
+
+[tasks]
+heading = "Implementation Plan: workmates-03-skill-catalog"
+
+[task.1]
+title   = "Pure comparison"
+section = "Slice 1: what the catalog means"
+status  = "pending"
+
+[task.1.1]
+title      = "Parse a catalog defensively"
+status     = "pending"
+wave       = 0
+symbols    = ["parseCatalog", "hashBody"]
+touches    = ["server/agents/skill-registry.ts"]
+verify_cmd = "node --test test/skill-registry.test.ts"
+do_1       = "Accept {skills:[...]} or a bare array; drop non-objects, bad slugs, duplicates, empty and oversized bodies"
+do_2       = "Normalise name, description, version, tags and author with caps; recompute sha256 from the trimmed body"
+do_3       = "Return [] for nonsense instead of throwing"
+reqs       = ["1.1", "1.2", "1.3", "1.4"]
+
+[task.1.2]
+title      = "Decide a skill's standing"
+status     = "pending"
+wave       = 1
+requires   = ["1.1"]
+symbols    = ["standing", "listing", "updateCount", "markFor"]
+touches    = ["server/agents/skill-registry.ts"]
+verify_cmd = "node --test test/skill-registry.test.ts"
+do_1       = "Order the decision: available, bundled, yours, edited-and-outdated, edited, outdated, current"
+do_2       = "Carry says, action and destructive on every standing so the UI has nothing to invent"
+do_3       = "Count only outdated skills as updates"
+reqs       = ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8"]
+
+[task.2]
+title   = "Fetch, cache and install"
+section = "Slice 2: the server"
+status  = "pending"
+
+[task.2.1]
+title      = "Serve the catalog with a TTL cache"
+status     = "pending"
+wave       = 2
+requires   = ["1.2"]
+symbols    = ["loadCatalog", "installedMarks"]
+touches    = ["server/index.ts"]
+verify_cmd = "node --test test/api.test.ts"
+do_1       = "GET /api/skills/registry returns listings and the update count; refresh=1 bypasses the 30-minute cache"
+do_2       = "Cap the document at 512 KiB and the fetch at 15 s; any failure is a 502 with a one-line reason"
+do_3       = "Honour WORKMATES_SKILLS_URL so tests can serve a local catalog"
+reqs       = ["1.5", "4.5"]
+
+[task.2.2]
+title      = "Install with provenance"
+status     = "pending"
+wave       = 2
+requires   = ["1.2"]
+symbols    = ["installSkill", "serialize", "parseMarkdown", "slugify"]
+touches    = ["server/agents/skills.ts", "server/index.ts"]
+verify_cmd = "node --test test/skills.test.ts test/api.test.ts"
+do_1       = "POST /api/skills/registry/:id installs with markFor(entry) written to frontmatter; 404 when the catalog lacks the id"
+do_2       = "Keep a previous file's registry, version and sha256 when a later save omits them"
+do_3       = "Enforce the 16000-byte and 200-skill caps as 413 and 507; broadcast skills and record skill.installed"
+reqs       = ["3.1", "3.2", "3.3", "3.4", "3.5"]
+
+[task.3]
+title   = "The catalog screen"
+section = "Slice 3: the client"
+status  = "pending"
+
+[task.3.1]
+title      = "Catalog tab in the Skills panel"
+status     = "pending"
+wave       = 3
+requires   = ["2.1", "2.2"]
+symbols    = ["SkillCatalog", "ActionButton", "Says", "SkillsPanel"]
+touches    = ["src/components/settings/SkillCatalog.tsx", "src/components/settings/SkillsPanel.tsx"]
+verify_cmd = "pnpm -s typecheck"
+do_1       = "Render the state chip per standing and the server's action string on the button, warning-styled when destructive"
+do_2       = "Show the says sentence in the detail view, with the replacement warning appended when destructive"
+do_3       = "Fetch the update count once on mount for the tab badge; Refresh requests refresh=1"
+reqs       = ["4.1", "4.2", "4.3", "4.4", "4.5"]
