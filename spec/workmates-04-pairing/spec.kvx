@@ -1,0 +1,153 @@
+# workmates-04-pairing — feature spec. Requirements, design, then the task list.
+
+[meta]
+feature = "workmates-04-pairing"
+intro   = "Let a phone reach this Mac's agents: pairing by six-digit code or QR on the local network, and a relay for everywhere else that carries only ciphertext the relay cannot read."
+
+[req.1]
+title = "Off by default, on by decision"
+story = "As the owner of this Mac, I want the server to answer only loopback until I switch pairing on so that widening what it listens on is a decision, not a toggle I trip over."
+ac_1  = "WHEN pairing has never been enabled THE server SHALL bind 127.0.0.1 only and answer every network request, health included, with 403."
+ac_2  = "WHEN pairing is switched on THE status SHALL report enabled with restartRequired true until the process restarts and binds 0.0.0.0."
+ac_3  = "WHEN pairing is switched off THE remote surface SHALL close at once, with no restart, and the relay line SHALL drop."
+ac_4  = "WHEN any pairing setting, window or device list is changed THE request SHALL be accepted only from loopback; a paired device gets 403."
+
+[req.2]
+title = "A window a phone can walk through once"
+story = "As a user, I want a short-lived code and a QR that a phone can use to pair so that pairing takes seconds and a leaked code is worthless minutes later."
+ac_1  = "WHEN a window is opened THE server SHALL mint a six-digit code and a workmates_pair_ token of 32 base64url characters, both expiring after five minutes, kept only in memory and only one at a time."
+ac_2  = "WHEN the code or the token is redeemed THE server SHALL burn both together and answer with a bearer token and a device record without its hash."
+ac_3  = "WHEN five wrong attempts are made THE server SHALL close the window entirely rather than keep answering."
+ac_4  = "WHEN an unpaired device calls anything but health or claim THE server SHALL answer 401 with a message that says to pair."
+ac_5  = "WHEN the QR is rendered THE client SHALL encode workmates://pair with address, token, code and name, on a white background, and refuse to render a link whose fields fail their shape checks."
+
+[req.3]
+title = "Devices on disk without their secrets"
+story = "As a user, I want revoking a phone to lock it out immediately and a stolen config file to be useless so that the list of devices is not a list of keys."
+ac_1  = "WHEN a device is paired THE server SHALL store only the SHA-256 of its token, its id, a cleaned name of at most 60 characters and pairedAt under remote.devices in config.json."
+ac_2  = "WHEN a stored device record has a hash that is not 64 hex characters THE loader SHALL drop it rather than repair it."
+ac_3  = "WHEN a device is revoked THE next request with its token SHALL be refused; revoking all empties the list."
+ac_4  = "WHEN a seventeenth device pairs THE oldest SHALL be evicted so the list never exceeds 16."
+ac_5  = "WHEN a request carries a valid token but an Origin other than the server's own THE server SHALL answer 403."
+
+[req.4]
+title = "A relay that carries only ciphertext"
+story = "As a user away from home, I want my phone to reach the Mac through a relay so that it works on hotel wifi and behind carrier NAT, without the relay reading anything."
+ac_1  = "WHEN the relay is enabled THE Mac SHALL dial out to GET /space/agent/stream and hold the line, reconnecting with backoff from 2 s to 60 s, a 30 s keepalive and a 60 s watchdog."
+ac_2  = "WHEN a frame is sent to phones THE Mac SHALL seal it once per paired device with AES-256-GCM under a key derived by HKDF-SHA256 from sha256(token) and the direction, with a fresh 12-byte nonce; the relay sees only the device id, nonce, ciphertext and an optional wake reason."
+ac_3  = "WHEN a sealed request arrives from a phone THE Mac SHALL serve it as a remote paired caller, so local-only routes stay local-only however the bytes arrived on loopback."
+ac_4  = "WHEN a mutating request is replayed, or its timestamp is outside the 120 s window THE Mac SHALL answer 409 stale or replayed request."
+ac_5  = "WHEN an envelope names an unknown device THE Mac SHALL answer 401 with an empty payload, not ciphertext."
+ac_6  = "WHEN a frame sealed by a phone is opened with the mac-to-phone key THE result SHALL be null, so nothing can be reflected across directions."
+ac_7  = "WHEN only a turn blocked on a human happens THE wake reason SHALL be needs-you; every other frame wakes nothing."
+
+[req.5]
+title = "Activate Cloud without keeping the key"
+story = "As a user, I want to activate the relay with a wm_live_ licence key so that the key is spent once for a space and never written down or logged."
+ac_1  = "WHEN the key does not match wm_live_ followed by 32 lowercase hex characters THE server SHALL answer 400 before dialling the relay."
+ac_2  = "WHEN the relay answers 402 THE server SHALL pass billing's own words through unchanged."
+ac_3  = "WHEN the relay quotes the request back in an error THE server SHALL redact the key and any stored secret before answering 502."
+ac_4  = "WHEN a space is minted THE server SHALL save only url, agentToken, clientToken and enabled to config, leave pairing as the owner set it, and bring the line up."
+ac_5  = "WHEN status is asked THE server SHALL report enabled, connected and spaceId as three separate facts."
+ac_6  = "WHEN a relay URL is configured THE server SHALL require https unless the hostname is exactly a loopback address."
+
+[design]
+overview = "Pairing is server/remote/pairing.ts: remote.enabled in config, bindHost read once at boot, one in-memory pending window {code, token, expires, tries}, MAX_ATTEMPTS 5, CODE_TTL_MS 5 min, MAX_DEVICES 16, MAX_NAME 60; claimPairing compares with a length-gated timingSafeEqual and stores sha256(token) only; deviceForToken hashes the offered token and compares digests. The remote gate in server/index.ts requires remoteEnabled and same origin, then a device token, and allow-lists exactly GET /api/health and POST /api/pair/claim before a device is anybody. The relay is server/remote/relay-link.ts (RelayLink: configure, dial, publish, serve, backoff, keepalive, watchdog, generation counter, nonce set cleared every REPLAY_WINDOW_MS) over server/remote/relay-crypto.ts (deviceKey via hkdfSync with INFO workmates-relay-v1 and a per-direction info string, seal/open/peek on a {d, n, c} envelope). A relayed request carries x-workmates-relay with a per-boot INTERNAL secret and x-workmates-relay-device, and is replayed against the Mac's own HTTP surface with local=false. Activation is POST /api/relay/activate: CLOUD_KEY shape check, POST {relayBase()}/spaces with the key as a bearer, redactSecrets on quoted errors, save {url, agentToken, clientToken, enabled}. relayBase() prefers config, then WORKMATES_RELAY_URL, then https://relay.workmate.centra.ag. UI: DevicesSection.tsx (switch, Pair a phone, QR on white, code, countdown, cancel, paired list with revoke) and CloudSection.tsx (key input, Activate, Connected or Reconnecting pill, spaceId, Replace)."
+modules  = ["server/remote/pairing.ts", "server/remote/relay-link.ts", "server/remote/relay-crypto.ts", "server/index.ts", "src/components/settings/DevicesSection.tsx", "src/components/settings/CloudSection.tsx"]
+routes   = ["GET/PUT/PATCH /api/pair", "POST /api/pair/start", "POST /api/pair/cancel", "POST /api/pair/claim (open)", "DELETE /api/pair/devices[/:id]", "GET/PUT/PATCH /api/relay", "GET /api/relay/join", "POST /api/relay/activate", "GET /api/relay/status"]
+invariants = ["Loopback is the credential until pairing is on.", "The code never touches disk; the token never comes back off it.", "Nothing readable leaves the Mac; the relay routes ciphertext.", "A phone through the relay is exactly a phone on the network.", "The licence key is a receipt, not a credential this machine keeps."]
+
+[documentation]
+mode      = "auto"
+status    = "pending"
+audiences = ["user", "developer"]
+targets   = ["README.md", "docs/**", "CONTRIBUTING.md", "CHANGELOG.md"]
+
+[tasks]
+heading = "Implementation Plan: workmates-04-pairing"
+
+[task.1]
+title   = "Pairing on the local network"
+section = "Slice 1: pairing"
+status  = "pending"
+
+[task.1.1]
+title      = "The switch, the window and the claim"
+status     = "pending"
+wave       = 0
+symbols    = ["setRemoteEnabled", "bindHost", "startPairing", "claimPairing", "cancelPairing", "pairingStatus", "lanAddresses"]
+touches    = ["server/remote/pairing.ts"]
+verify_cmd = "node --test test/pairing.test.ts"
+do_1       = "remote.enabled in config; bindHost read once at boot; off is immediate, on needs a restart"
+do_2       = "One in-memory window: six-digit code plus workmates_pair_ token, five minutes, five tries, single use"
+do_3       = "Store sha256(token), id, cleaned name and pairedAt; cap at 16 devices, oldest out"
+reqs       = ["1.1", "1.2", "1.3", "2.1", "2.2", "2.3", "3.1", "3.2", "3.4"]
+
+[task.1.2]
+title      = "The remote gate"
+status     = "pending"
+wave       = 1
+requires   = ["1.1"]
+symbols    = ["deviceForToken", "revokeDevice", "revokeAll", "isSameOrigin", "bearerToken"]
+touches    = ["server/remote/pairing.ts", "server/index.ts"]
+verify_cmd = "node --test test/pairing.test.ts test/http-guard.test.ts"
+do_1       = "Require remoteEnabled and same origin, then a valid device token; allow-list only health and claim"
+do_2       = "Every pairing mutation is loopback only; 401 with a pair hint for strangers"
+do_3       = "Revoke one or all devices and clear lastSeen; broadcast pairing status"
+reqs       = ["1.4", "2.4", "3.3", "3.5"]
+
+[task.1.3]
+title      = "Devices screen"
+status     = "pending"
+wave       = 2
+requires   = ["1.2"]
+symbols    = ["DevicesSection", "pairLink"]
+touches    = ["src/components/settings/DevicesSection.tsx"]
+verify_cmd = "pnpm -s typecheck"
+do_1       = "Switch bound to PUT /api/pair; Pair a phone opens a window; poll GET /api/pair every 4 s while visible"
+do_2       = "Render the workmates://pair QR on white with the code and a countdown; cancel drops the window"
+do_3       = "List paired devices with a revoke button per row"
+reqs       = ["2.5"]
+
+[task.2]
+title   = "The relay"
+section = "Slice 2: relay"
+status  = "pending"
+
+[task.2.1]
+title      = "Envelopes and keys"
+status     = "pending"
+wave       = 0
+symbols    = ["deviceKey", "keyFromToken", "seal", "open", "peek"]
+touches    = ["server/remote/relay-crypto.ts"]
+verify_cmd = "node --test test/relay-crypto.test.ts"
+do_1       = "HKDF-SHA256 from sha256(token) with info workmates-relay-v1 and the direction; two keys per device"
+do_2       = "AES-256-GCM with a fresh 12-byte nonce and the tag appended; envelope {d, n, c} base64"
+do_3       = "open returns null for a wrong key, a flipped bit or garbage; peek reads only the device id"
+reqs       = ["4.2", "4.6"]
+
+[task.2.2]
+title      = "The line"
+status     = "pending"
+wave       = 1
+requires   = ["2.1", "1.2"]
+symbols    = ["RelayLink", "relayDeviceFor", "relayBase", "wakeReason"]
+touches    = ["server/remote/relay-link.ts", "server/index.ts"]
+verify_cmd = "node --test test/relay-link.test.ts"
+do_1       = "Dial out and hold an SSE stream; backoff 2 s to 60 s times 1.8, keepalive 30 s, watchdog 60 s, generation-guarded redials"
+do_2       = "publish seals per device and posts a heartbeat even with no devices; serve opens, checks ts and nonce within 120 s, replays against the local HTTP surface as a remote caller"
+do_3       = "Unknown device gets 401 and no ciphertext; paths outside /api/ or containing .. get 404; needs-you is the only wake"
+reqs       = ["4.1", "4.3", "4.4", "4.5", "4.7"]
+
+[task.2.3]
+title      = "Activate Cloud"
+status     = "pending"
+wave       = 2
+requires   = ["2.2"]
+symbols    = ["redactSecrets", "syncRelay", "CloudSection"]
+touches    = ["server/index.ts", "src/components/settings/CloudSection.tsx"]
+verify_cmd = "node --test test/relay-activate.test.ts test/no-secrets.test.ts"
+do_1       = "Shape-check wm_live_ keys before dialling; 402 passes through; quoted errors are redacted; save only the space tokens"
+do_2       = "Report enabled, connected and spaceId separately; https required unless the host is exactly loopback"
+do_3       = "Cloud screen: activate, Connected or Reconnecting pill, Replace on another Mac"
+reqs       = ["5.1", "5.2", "5.3", "5.4", "5.5", "5.6"]
