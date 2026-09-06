@@ -1,0 +1,83 @@
+appId: ag.centra.workmate.app
+productName: Workmates
+artifactName: Workmates-${version}-${arch}.${ext}
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - electron/**
+  - "!electron/resources/speech-helper"
+  - "!electron/resources/perm-helper"
+  - "!electron/resources/auth-helper"
+  - "!**/node_modules/**"
+  - package.json
+
+asar: true
+
+extraResources:
+  - from: dist
+    to: ui
+  - from: dist-server
+    to: server
+  - from: bin
+    to: bin
+
+mac:
+  extraResources:
+    - from: electron/resources/speech-helper
+      to: speech-helper
+    - from: electron/resources/perm-helper
+      to: perm-helper
+    - from: electron/resources/auth-helper
+      to: auth-helper
+  target:
+    - target: dmg
+      arch: universal
+    - target: zip
+      arch: universal
+  icon: build/icon.png
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Workmates uses the microphone for voice dictation into the composer.
+    NSSpeechRecognitionUsageDescription: Workmates transcribes your voice on-device to type messages for you.
+  notarize: true
+
+dmg:
+  sign: false
+  artifactName: Workmates-${version}.dmg
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+  icon: build/icon.png
+  category: Utility
+  maintainer: hamedr@outlook.com
+  synopsis: A local-first desktop workspace for personal AI agents
+
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  icon: build/icon.ico
+
+nsis:
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+
+publish:
+  provider: github
+  owner: Sidiora-Labs
+  repo: workmates-ai
+  releaseType: draft
