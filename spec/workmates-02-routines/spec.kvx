@@ -50,7 +50,7 @@ invariants = ["A missed run fires once, not N times.", "lastRunAt is what stops 
 
 [documentation]
 mode      = "auto"
-status    = "pending"
+status    = "done"
 audiences = ["user", "developer"]
 targets   = ["README.md", "docs/**", "CONTRIBUTING.md", "CHANGELOG.md"]
 
@@ -60,11 +60,11 @@ heading = "Implementation Plan: workmates-02-routines"
 [task.1]
 title   = "Schedule maths and the store"
 section = "Slice 1: the store"
-status  = "pending"
+status  = "done"
 
 [task.1.1]
 title      = "Pure schedule maths"
-status     = "pending"
+status     = "done"
 wave       = 0
 symbols    = ["parseTime", "lastScheduledBefore", "nextScheduledAfter", "isDue"]
 touches    = ["server/stores/routines.ts"]
@@ -76,7 +76,7 @@ reqs       = ["1.2", "1.3", "1.5", "2.1", "2.2"]
 
 [task.1.2]
 title      = "Normalise, persist and record runs"
-status     = "pending"
+status     = "done"
 wave       = 1
 requires   = ["1.1"]
 symbols    = ["normalize", "RoutineStore", "isRoutine"]
@@ -90,11 +90,11 @@ reqs       = ["1.1", "1.4", "3.1", "3.3", "3.5"]
 [task.2]
 title   = "The tick"
 section = "Slice 2: the server"
-status  = "pending"
+status  = "done"
 
 [task.2.1]
 title      = "Dispatch due routines"
-status     = "pending"
+status     = "done"
 wave       = 2
 requires   = ["1.2"]
 symbols    = ["runDueRoutines", "backgroundTaskId", "closeRun", "postToRoom"]
@@ -107,7 +107,7 @@ reqs       = ["2.3", "2.4", "2.5", "3.2"]
 
 [task.2.2]
 title      = "Routes"
-status     = "pending"
+status     = "done"
 wave       = 2
 requires   = ["1.2"]
 symbols    = ["runDueRoutines"]
@@ -121,11 +121,11 @@ reqs       = ["1.5", "2.6", "3.4"]
 [task.3]
 title   = "Schedules in the Automations panel"
 section = "Slice 3: the client"
-status  = "pending"
+status  = "done"
 
 [task.3.1]
 title      = "Calendar, drag and details"
-status     = "pending"
+status     = "done"
 wave       = 3
 requires   = ["2.2"]
 symbols    = ["AutomationsPanel", "RoutineDetails", "RunHistory"]
@@ -138,7 +138,7 @@ reqs       = ["4.1", "4.2", "4.3", "4.4"]
 
 [task.3.2]
 title      = "Dialog and per-agent section"
-status     = "pending"
+status     = "done"
 wave       = 3
 requires   = ["2.2"]
 symbols    = ["RoutinesDialog", "RoutinesSection"]

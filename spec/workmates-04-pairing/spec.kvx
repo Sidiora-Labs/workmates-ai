@@ -59,7 +59,7 @@ invariants = ["Loopback is the credential until pairing is on.", "The code never
 
 [documentation]
 mode      = "auto"
-status    = "pending"
+status    = "done"
 audiences = ["user", "developer"]
 targets   = ["README.md", "docs/**", "CONTRIBUTING.md", "CHANGELOG.md"]
 
@@ -69,11 +69,11 @@ heading = "Implementation Plan: workmates-04-pairing"
 [task.1]
 title   = "Pairing on the local network"
 section = "Slice 1: pairing"
-status  = "pending"
+status  = "done"
 
 [task.1.1]
 title      = "The switch, the window and the claim"
-status     = "pending"
+status     = "done"
 wave       = 0
 symbols    = ["setRemoteEnabled", "bindHost", "startPairing", "claimPairing", "cancelPairing", "pairingStatus", "lanAddresses"]
 touches    = ["server/remote/pairing.ts"]
@@ -85,7 +85,7 @@ reqs       = ["1.1", "1.2", "1.3", "2.1", "2.2", "2.3", "3.1", "3.2", "3.4"]
 
 [task.1.2]
 title      = "The remote gate"
-status     = "pending"
+status     = "done"
 wave       = 1
 requires   = ["1.1"]
 symbols    = ["deviceForToken", "revokeDevice", "revokeAll", "isSameOrigin", "bearerToken"]
@@ -98,7 +98,7 @@ reqs       = ["1.4", "2.4", "3.3", "3.5"]
 
 [task.1.3]
 title      = "Devices screen"
-status     = "pending"
+status     = "done"
 wave       = 2
 requires   = ["1.2"]
 symbols    = ["DevicesSection", "pairLink"]
@@ -112,11 +112,11 @@ reqs       = ["2.5"]
 [task.2]
 title   = "The relay"
 section = "Slice 2: relay"
-status  = "pending"
+status  = "done"
 
 [task.2.1]
 title      = "Envelopes and keys"
-status     = "pending"
+status     = "done"
 wave       = 0
 symbols    = ["deviceKey", "keyFromToken", "seal", "open", "peek"]
 touches    = ["server/remote/relay-crypto.ts"]
@@ -128,7 +128,7 @@ reqs       = ["4.2", "4.6"]
 
 [task.2.2]
 title      = "The line"
-status     = "pending"
+status     = "done"
 wave       = 1
 requires   = ["2.1", "1.2"]
 symbols    = ["RelayLink", "relayDeviceFor", "relayBase", "wakeReason"]
@@ -141,7 +141,7 @@ reqs       = ["4.1", "4.3", "4.4", "4.5", "4.7"]
 
 [task.2.3]
 title      = "Activate Cloud"
-status     = "pending"
+status     = "done"
 wave       = 2
 requires   = ["2.2"]
 symbols    = ["redactSecrets", "syncRelay", "CloudSection"]

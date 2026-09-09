@@ -2,7 +2,7 @@
 
 [meta]
 name            = "Spec Workflow"
-active_feature  = "workmates-01-rooms"
+active_feature  = "workmates-04-pairing"
 source_of_truth = "spec/ (kvx). Generated files are pointers — regenerate, never hand-edit."
 
 [mode]

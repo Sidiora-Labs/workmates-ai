@@ -6,13 +6,13 @@
 
 ## Slice 1: the store
 
-- [ ] 1. Schedule maths and the store
-  - [ ] 1.1 Pure schedule maths
+- [x] 1. Schedule maths and the store
+  - [x] 1.1 Pure schedule maths
     - Parse HH:MM strictly; find the most recent slot within 7 days and the next one, honouring days and once dates
     - isDue: enabled, slot within GRACE_MS, lastRunAt before the slot
     - describe renders Every day, Weekdays, Weekends, Every Wednesday, Mon, Thu and Once on
     - _Requirements: 1.2, 1.3, 1.5, 2.1, 2.2_
-  - [ ] 1.2 Normalise, persist and record runs
+  - [x] 1.2 Normalise, persist and record runs
     - normalize refuses missing target, prompt or time and clamps prompt, name, days and durationMin
     - routines.json 0o600, malformed entries dropped on load; MAX_ROUTINES 50
     - Runs capped at 20; orphans settled to failed at boot; delete every routine aimed at a removed target
@@ -20,13 +20,13 @@
 
 ## Slice 2: the server
 
-- [ ] 2. The tick
-  - [ ] 2.1 Dispatch due routines
+- [x] 2. The tick
+  - [x] 2.1 Dispatch due routines
     - Every 30 s and 5 s after boot; markRan before startTurn; busy targets retried later; archived, held or empty targets skipped without markRan
     - Agent runs go to an idle Routines lane without activating it; room runs post the prompt to the room
     - turn.completed closes the run with the last message and writes routine.ran to the ledger
     - _Requirements: 2.3, 2.4, 2.5, 3.2_
-  - [ ] 2.2 Routes
+  - [x] 2.2 Routes
     - GET lists with summary and nextRunAt; POST validates target existence and the 50 cap
     - PATCH merges only user-editable fields, never lastRunAt; DELETE removes; POST /run answers 202 or 409
     - Broadcast routines on every change; agents may call the routine routes from the CLI
@@ -34,13 +34,13 @@
 
 ## Slice 3: the client
 
-- [ ] 3. Schedules in the Automations panel
-  - [ ] 3.1 Calendar, drag and details
+- [x] 3. Schedules in the Automations panel
+  - [x] 3.1 Calendar, drag and details
     - Day, week and month views projected from time and days; Paused strip; now line; click-to-create prefill
     - Pointer drag with a 5 px threshold snapped to 15 minutes, PATCHing time, date or the swapped weekday
     - Details popover with the enable switch, Run now, Delete and the run history
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
-  - [ ] 3.2 Dialog and per-agent section
+  - [x] 3.2 Dialog and per-agent section
     - Create form: target, name, prompt, repeat or once, time, date or day toggles, duration, Runs on for agents
     - List rows with next-run text, enable switch, Run now and Delete; refetch after every write
     - RoutinesSection inside ComputerPanel and pinned from RoomView

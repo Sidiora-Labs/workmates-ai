@@ -6,8 +6,8 @@
 
 ## Slice 1: the store
 
-- [ ] 1. The room store
-  - [ ] 1.1 Records and addressing
+- [x] 1. The room store
+  - [x] 1.1 Records and addressing
     - RoomRecord with roster, leadOnly, archived, section, cwd and pinnedCwd; rooms.json 0o600, newest first
     - create dedupes and caps at 8; patch clears cwd and section when present; archived false is stored as absent
     - addressees: case-insensitive, longest name first, each match blanked, results in room order
@@ -15,14 +15,14 @@
 
 ## Slice 2: the server
 
-- [ ] 2. The room engine
-  - [ ] 2.1 Reach, order and handoff
+- [x] 2. The room engine
+  - [x] 2.1 Reach, order and handoff
     - One dispatch loop per room; latecomers queued and broadcast; deleted queued messages never run
     - Resolve reach with mentions, leadOnly and toAll; notice for archived addressees; juniors first, senior last, idle between
     - Hand the room on after a turn up to 3 hops; queue mid-round handoffs; refusals become notices
     - Brief the lead and the members differently; inject the labelled 30-message transcript only in rooms
     - _Requirements: 1.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 4.1, 4.2, 4.4_
-  - [ ] 2.2 Routes, teams and desks
+  - [x] 2.2 Routes, teams and desks
     - GET, POST, PATCH, DELETE rooms and POST messages with 201 or 202; agents see rosters of all rooms and transcripts of their own
     - Team plans in a workmates-team fence become an options card; hire at seniority 1 on the cheapest model; import validates the folder first; manifest export carries no ids
     - pinCwd on first dispatch; a later cwd patch is 409; decision cards send one queued @Name reply
@@ -30,8 +30,8 @@
 
 ## Slice 3: the client
 
-- [ ] 3. The room screen
-  - [ ] 3.1 RoomView, dialogs and lenses
+- [x] 3. The room screen
+  - [x] 3.1 RoomView, dialogs and lenses
     - Header crown line over the members that can answer; leadOnly toggle; archive or delete sheet; desk field until pinned
     - New room dialog capped at 8 with a live crown; team library, scout and import; seat filling with drawn names
     - Stream and forum lenses over one transcript; @ autocomplete; the team map as a door, not a dashboard

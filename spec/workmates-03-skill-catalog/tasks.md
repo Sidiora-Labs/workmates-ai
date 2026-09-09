@@ -6,13 +6,13 @@
 
 ## Slice 1: what the catalog means
 
-- [ ] 1. Pure comparison
-  - [ ] 1.1 Parse a catalog defensively
+- [x] 1. Pure comparison
+  - [x] 1.1 Parse a catalog defensively
     - Accept {skills:[...]} or a bare array; drop non-objects, bad slugs, duplicates, empty and oversized bodies
     - Normalise name, description, version, tags and author with caps; recompute sha256 from the trimmed body
     - Return [] for nonsense instead of throwing
     - _Requirements: 1.1, 1.2, 1.3, 1.4_
-  - [ ] 1.2 Decide a skill's standing
+  - [x] 1.2 Decide a skill's standing
     - Order the decision: available, bundled, yours, edited-and-outdated, edited, outdated, current
     - Carry says, action and destructive on every standing so the UI has nothing to invent
     - Count only outdated skills as updates
@@ -20,13 +20,13 @@
 
 ## Slice 2: the server
 
-- [ ] 2. Fetch, cache and install
-  - [ ] 2.1 Serve the catalog with a TTL cache
+- [x] 2. Fetch, cache and install
+  - [x] 2.1 Serve the catalog with a TTL cache
     - GET /api/skills/registry returns listings and the update count; refresh=1 bypasses the 30-minute cache
     - Cap the document at 512 KiB and the fetch at 15 s; any failure is a 502 with a one-line reason
     - Honour WORKMATES_SKILLS_URL so tests can serve a local catalog
     - _Requirements: 1.5, 4.5_
-  - [ ] 2.2 Install with provenance
+  - [x] 2.2 Install with provenance
     - POST /api/skills/registry/:id installs with markFor(entry) written to frontmatter; 404 when the catalog lacks the id
     - Keep a previous file's registry, version and sha256 when a later save omits them
     - Enforce the 16000-byte and 200-skill caps as 413 and 507; broadcast skills and record skill.installed
@@ -34,8 +34,8 @@
 
 ## Slice 3: the client
 
-- [ ] 3. The catalog screen
-  - [ ] 3.1 Catalog tab in the Skills panel
+- [x] 3. The catalog screen
+  - [x] 3.1 Catalog tab in the Skills panel
     - Render the state chip per standing and the server's action string on the button, warning-styled when destructive
     - Show the says sentence in the detail view, with the replacement warning appended when destructive
     - Fetch the update count once on mount for the tab badge; Refresh requests refresh=1

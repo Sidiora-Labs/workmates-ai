@@ -52,7 +52,7 @@ invariants = ["A stated hash is never trusted; the body is hashed locally.", "No
 
 [documentation]
 mode      = "auto"
-status    = "pending"
+status    = "done"
 audiences = ["user", "developer"]
 targets   = ["README.md", "docs/**", "CONTRIBUTING.md", "CHANGELOG.md"]
 
@@ -62,11 +62,11 @@ heading = "Implementation Plan: workmates-03-skill-catalog"
 [task.1]
 title   = "Pure comparison"
 section = "Slice 1: what the catalog means"
-status  = "pending"
+status  = "done"
 
 [task.1.1]
 title      = "Parse a catalog defensively"
-status     = "pending"
+status     = "done"
 wave       = 0
 symbols    = ["parseCatalog", "hashBody"]
 touches    = ["server/agents/skill-registry.ts"]
@@ -78,7 +78,7 @@ reqs       = ["1.1", "1.2", "1.3", "1.4"]
 
 [task.1.2]
 title      = "Decide a skill's standing"
-status     = "pending"
+status     = "done"
 wave       = 1
 requires   = ["1.1"]
 symbols    = ["standing", "listing", "updateCount", "markFor"]
@@ -92,11 +92,11 @@ reqs       = ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8"]
 [task.2]
 title   = "Fetch, cache and install"
 section = "Slice 2: the server"
-status  = "pending"
+status  = "done"
 
 [task.2.1]
 title      = "Serve the catalog with a TTL cache"
-status     = "pending"
+status     = "done"
 wave       = 2
 requires   = ["1.2"]
 symbols    = ["loadCatalog", "installedMarks"]
@@ -109,7 +109,7 @@ reqs       = ["1.5", "4.5"]
 
 [task.2.2]
 title      = "Install with provenance"
-status     = "pending"
+status     = "done"
 wave       = 2
 requires   = ["1.2"]
 symbols    = ["installSkill", "serialize", "parseMarkdown", "slugify"]
@@ -123,11 +123,11 @@ reqs       = ["3.1", "3.2", "3.3", "3.4", "3.5"]
 [task.3]
 title   = "The catalog screen"
 section = "Slice 3: the client"
-status  = "pending"
+status  = "done"
 
 [task.3.1]
 title      = "Catalog tab in the Skills panel"
-status     = "pending"
+status     = "done"
 wave       = 3
 requires   = ["2.1", "2.2"]
 symbols    = ["SkillCatalog", "ActionButton", "Says", "SkillsPanel"]
