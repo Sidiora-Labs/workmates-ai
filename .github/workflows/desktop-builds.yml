@@ -1,0 +1,134 @@
+name: Desktop builds
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Linux (AppImage, deb)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test
+
+      - run: pnpm build && pnpm build:server
+      - run: pnpm exec electron-builder --linux --publish never
+      - uses: actions/upload-artifact@v7
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: workmates-linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/latest*.yml
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 80); do
+            id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+                   --jq "[.[] | select(.tag_name == \"$GITHUB_REF_NAME\")] | first | .id // empty")
+            if [ -n "$id" ]; then
+              echo "attaching to release $id"
+              for f in release/*.AppImage release/*.deb release/latest*.yml release/*.blockmap; do
+                [ -f "$f" ] || continue
+                name=$(basename "$f")
+                if gh api "repos/$GITHUB_REPOSITORY/releases/$id/assets" \
+                     --jq "map(select(.name == \"$name\")) | length" | grep -qv '^0$'; then
+                  echo "  already there: $name"
+                  continue
+                fi
+                gh api --method POST \
+                  -H "Content-Type: application/octet-stream" \
+                  "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$id/assets?name=$name" \
+                  --input "$f" >/dev/null
+                echo "  uploaded $name"
+              done
+              exit 0
+            fi
+            echo "waiting for the draft release ($i/80)"
+            sleep 30
+          done
+          echo "The draft release never appeared. The build is still on this run as an artifact."
+          exit 1
+
+  windows:
+    name: Windows (installer, zip)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build && pnpm build:server
+      - run: pnpm exec electron-builder --win --publish never
+      - uses: actions/upload-artifact@v7
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: workmates-windows
+          path: |
+            release/*.exe
+            release/*.zip
+            release/latest*.yml
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 80); do
+            id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+                   --jq "[.[] | select(.tag_name == \"$GITHUB_REF_NAME\")] | first | .id // empty")
+            if [ -n "$id" ]; then
+              echo "attaching to release $id"
+              for f in release/*.exe release/*.zip release/latest*.yml release/*.blockmap; do
+                [ -f "$f" ] || continue
+                name=$(basename "$f")
+                if gh api "repos/$GITHUB_REPOSITORY/releases/$id/assets" \
+                     --jq "map(select(.name == \"$name\")) | length" | grep -qv '^0$'; then
+                  echo "  already there: $name"
+                  continue
+                fi
+                gh api --method POST \
+                  -H "Content-Type: application/octet-stream" \
+                  "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$id/assets?name=$name" \
+                  --input "$f" >/dev/null
+                echo "  uploaded $name"
+              done
+              exit 0
+            fi
+            echo "waiting for the draft release ($i/80)"
+            sleep 30
+          done
+          echo "The draft release never appeared. The build is still on this run as an artifact."
+          exit 1
+

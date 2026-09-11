@@ -1,0 +1,153 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and sign, but do not create a release
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: Build, sign and notarize
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Check the tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $pkg."
+            echo "Bump the version, commit, then retag."
+            exit 1
+          fi
+
+      - name: Check the signing secrets are present
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=""
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              missing="$missing $name"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "Missing repository secrets:$missing"
+            echo "See docs/RELEASING.md for how to produce each one."
+            exit 1
+          fi
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      - name: Open the draft release
+        if: startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/releases" \
+               --jq "[.[] | select(.tag_name == \"$GITHUB_REF_NAME\")] | length" | grep -qv '^0$'; then
+            echo "a release for $GITHUB_REF_NAME already exists"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --draft \
+              --title "Workmates ${GITHUB_REF_NAME#v}" \
+              --notes "Draft. Notes go here before this is published."
+          fi
+
+      - name: Build, sign and notarize
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: pnpm package
+
+      - name: Verify the signature and the notarization ticket
+        run: |
+          app=release/mac-universal/Workmates.app
+          if [ ! -d "$app" ]; then
+            app="$(find release -maxdepth 3 -name 'Workmates.app' -print -quit)"
+          fi
+          if [ -z "$app" ] || [ ! -d "$app" ]; then
+            echo "No Workmates.app under release/; nothing to verify."
+            exit 1
+          fi
+          echo "== app: $app =="
+          lipo -archs "$app/Contents/MacOS/Workmates"
+          echo "== swift helpers, which have to be universal too =="
+          for helper in speech-helper perm-helper; do
+            echo "$helper: $(lipo -archs "$app/Contents/Resources/$helper")"
+          done
+          echo "== codesign =="
+          codesign --verify --deep --strict --verbose=2 "$app"
+          echo "== gatekeeper =="
+          spctl --assess --type execute --verbose=4 "$app"
+          echo "== stapled ticket =="
+          xcrun stapler validate "$app"
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+                 --jq "[.[] | select(.tag_name == \"$GITHUB_REF_NAME\")] | first | .id // empty")
+          if [ -z "$id" ]; then
+            echo "The draft this job opened is gone."
+            exit 1
+          fi
+          for f in release/*.dmg release/*.zip release/latest*.yml release/*.blockmap; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f")
+            if gh api "repos/$GITHUB_REPOSITORY/releases/$id/assets" \
+                 --jq "map(select(.name == \"$name\")) | length" | grep -qv '^0$'; then
+              echo "  already there: $name"
+              continue
+            fi
+            gh api --method POST \
+              -H "Content-Type: application/octet-stream" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$id/assets?name=$name" \
+              --input "$f" >/dev/null
+            echo "  uploaded $name"
+          done
+
+      - uses: actions/upload-artifact@v7
+        if: inputs.dry_run
+        with:
+          name: workmates-macos-unpublished
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/latest*.yml
+            release/*.blockmap
+          retention-days: 7
