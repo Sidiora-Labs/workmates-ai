@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { isRemoteServer } from "@/components/settings/ServerConnection";
 import { api } from "@/state/store";
 import { MateAvatar } from "../agents/Avatar";
 import { WorkmatesMark } from "./Brand";
@@ -117,8 +118,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
             Welcome to Workmates
           </h1>
           <p className="intro-rise mt-2 text-[14.5px] text-muted-foreground [animation-delay:240ms]">
-            Personal AI agents that live on your machine, not in someone
-            else's cloud.
+            {isRemoteServer() ? "Personal AI agents in your cloud workspace, available from desktop and phone." : "Personal AI agents that live on your computer, in your own workspace."}
           </p>
           <Button className="intro-rise mt-8 [animation-delay:360ms]" onClick={() => setStage("computers")}>
             Next

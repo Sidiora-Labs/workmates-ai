@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { HOSTED } from "../core/hosting.ts";
 import { DATA_DIR } from "../core/config.ts";
 
 export const DRIVER_VERSION = "0.20.0";
@@ -299,7 +300,7 @@ export async function vmStatus(): Promise<VmStatus> {
   const runtimes = await availableRuntimes();
   if (runtimes.length === 0) {
     base.problem =
-      process.platform === "darwin"
+      HOSTED ? "This hosted server has no container runtime. Choose Cloud box in the agent computer settings." : process.platform === "darwin"
         ? "No container runtime found. Install Apple's container CLI or Docker Desktop."
         : "No container runtime found. Install Docker or Podman.";
     return base;
@@ -360,7 +361,7 @@ async function requireRuntime(): Promise<string> {
   for (const candidate of runtimes) {
     if (await daemonUp(candidate)) return candidate;
   }
-  throw new Error("no running container runtime. Start Docker (or Apple's container) first");
+  throw new Error(HOSTED ? "This hosted server has no running container runtime. Choose Cloud box in the agent computer settings." : "no running container runtime. Start Docker (or Apple's container) first");
 }
 
 function guardLifecycle() {

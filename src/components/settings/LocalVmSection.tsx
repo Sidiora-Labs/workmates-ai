@@ -1,3 +1,4 @@
+import { isRemoteServer } from "./ServerConnection";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Check from "lucide-react/dist/esm/icons/check.mjs";
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.mjs";
@@ -122,6 +123,15 @@ export function LocalVmSection() {
       .catch((e: Error) => setError(e.message))
       .finally(() => setActing(null));
   };
+
+  if (isRemoteServer()) return (
+    <div className="mt-4 rounded-[10px] border bg-card p-4">
+      <div className="text-[13.5px] font-semibold">Local VM</div>
+      <p className="mt-1 text-[12.5px] text-muted-foreground">
+        Local VM is available with a local Workmates server. For this hosted workspace, connect Box and select Cloud box in your agent's computer settings.
+      </p>
+    </div>
+  );
 
   const s = status;
   const staleOrStopped = s?.container === "stopped" || (s?.container === "running" && !s.desktopReady && s.imageReady && Boolean(s.problem?.includes("older")));

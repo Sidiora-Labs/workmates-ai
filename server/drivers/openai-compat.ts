@@ -39,17 +39,14 @@ export function chooseModels(spec: ProviderSpec, ids: string[]): ModelCatalog | 
   const ranked = spec.prefer?.length
     ? clean
         .map((id) => ({ id, rank: spec.prefer!.findIndex((re) => re.test(id)) }))
-        .filter((e) => e.rank !== -1)
+        .map((e) => ({ ...e, rank: e.rank < 0 ? spec.prefer!.length : e.rank }))
         .sort((a, b) => a.rank - b.rank || a.id.localeCompare(b.id))
         .map((e) => e.id)
     : [...clean].sort();
-  const shortlist = (ranked.length ? ranked : [...clean].sort()).slice(0, spec.limit ?? 20);
-  if (!shortlist.length) return null;
-
-  const preferredDefault = shortlist.includes(spec.models.default) ? spec.models.default : shortlist[0];
+  const preferredDefault = ranked.includes(spec.models.default) ? spec.models.default : ranked[0];
   return {
     default: preferredDefault,
-    options: shortlist.map((id) => ({ id, label: labelFor(id) })),
+    options: ranked.map((id) => ({ id, label: labelFor(id) })),
   };
 }
 

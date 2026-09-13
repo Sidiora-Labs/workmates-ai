@@ -1,3 +1,4 @@
+import { isRemoteServer } from "@/components/settings/ServerConnection";
 import { useEffect, useRef, useState } from "react";
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.mjs";
 import Loader2 from "lucide-react/dist/esm/icons/loader-2.mjs";
@@ -183,8 +184,7 @@ function LocalVmCard({ bot }: { bot: Bot }) {
       ) : status !== null && !status.ready ? (
         <div className="mt-3 rounded-2xl border bg-card p-4">
           <div className="text-[12.5px] leading-relaxed text-muted-foreground">
-            The Local VM is a Cua Linux desktop in a container on this Mac. Free, and separate
-            from your own desktop.
+            {isRemoteServer() ? "Local VM needs a local Workmates server. Select Cloud box below to use a computer in this hosted workspace." : "The Local VM is a Cua Linux desktop in a container on this computer, separate from your own desktop."}
           </div>
           <Button
             variant="secondary"
@@ -218,7 +218,7 @@ export function ComputerPanel({ bot }: { bot: Bot }) {
     setPolledFrame(null);
     setLocalFrame(null);
     setError(null);
-    const isElectron = Boolean(window.rooms);
+    const isElectron = Boolean(window.rooms) && !isRemoteServer();
     if (bot.computer === "off" || bot.computer === "sandbox") {
       setPhase("off");
       return;
@@ -335,7 +335,7 @@ export function ComputerPanel({ bot }: { bot: Bot }) {
     checking: "Checking…",
     starting: "Starting your agent's computer…",
     unconfigured: "No cloud computer configured",
-    "local-unavailable": "Local preview needs the desktop app. Run pnpm dev:desktop",
+    "local-unavailable": isRemoteServer() ? "This workspace runs in the cloud. Select Cloud box below to use its computer." : "Local preview needs the Workmates desktop app connected to a local server.",
     off: "This agent's computer is off",
     error: "Couldn't reach the computer",
   };
@@ -454,26 +454,26 @@ export function ComputerPanel({ bot }: { bot: Bot }) {
         <div className="mt-4 rounded-2xl border bg-card p-4">
           <div className="text-[13.5px] font-semibold text-foreground">Runs on</div>
           <div className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
-            {bot.computer ? "" : "Auto: the cloud box when one exists, else this computer. "}Pick where
+            {bot.computer || isRemoteServer() ? "" : "Auto: the cloud box when one exists, else this computer. "}Pick where
             this agent's computer lives.
           </div>
           <div className="mt-3 flex items-center justify-between gap-3">
             <div>
               <div className="text-[13px] text-foreground">Automatic</div>
               <div className="text-[12px] text-muted-foreground">
-                The cloud box when one exists, else this computer
+                {isRemoteServer() ? "A cloud box connected to your workspace" : "The cloud box when one exists, else this computer"}
               </div>
             </div>
             <Switch
               checked={!bot.computer}
               onCheckedChange={(on) =>
-                dispatch({ type: "updateBot", botId: bot.id, patch: { computer: on ? null : "local" } })
+                dispatch({ type: "updateBot", botId: bot.id, patch: { computer: on ? null : isRemoteServer() ? "cloud" : "local" } })
               }
             />
           </div>
           {!bot.computer && !state.config?.box?.configured && (
             <div className="mt-2 rounded-xl bg-muted/60 px-3 py-2 text-[12px] text-muted-foreground">
-              No cloud box is set up, so Auto will use this computer. Add a Box
+              {isRemoteServer() ? "Connect Box to give this agent a cloud computer." : "No cloud box is set up, so Auto will use this computer."} Add a Box
               token below to give this agent a computer of its own.
             </div>
           )}
@@ -493,9 +493,11 @@ export function ComputerPanel({ bot }: { bot: Bot }) {
             ).map(([mode, label]) => (
               <button
                 key={mode}
+                  disabled={isRemoteServer() && (mode === "local" || mode === "sandbox")}
+                  title={isRemoteServer() && (mode === "local" || mode === "sandbox") ? "Available with a local Workmates server. Use Cloud box in this hosted workspace." : undefined}
                 onClick={() => dispatch({ type: "updateBot", botId: bot.id, patch: { computer: mode } })}
                 className={cn(
-                  "rounded-lg py-1.5 text-[12.5px] transition-colors duration-150",
+                  "rounded-lg py-1.5 text-[12.5px] transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40",
                   bot.computer === mode
                     ? "bg-background font-medium text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",

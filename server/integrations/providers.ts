@@ -12,7 +12,6 @@ export interface ProviderSpec {
   docsUrl: string;
   models: ModelCatalog;
   prefer?: RegExp[];
-  limit?: number;
   headers?: Record<string, string>;
   small?: string;
   tools?: boolean;
@@ -40,7 +39,6 @@ const OPENROUTER: ProviderSpec = {
     ],
   },
   prefer: [/^google\//, /^anthropic\//, /^x-ai\//, /^openai\//, /^moonshotai\//, /^meta-llama\//, /^deepseek\//, /^qwen\//, /^mistralai\//],
-  limit: 28,
   small: "google/gemini-2.5-flash",
 };
 
@@ -158,7 +156,6 @@ const MISTRAL: ProviderSpec = {
     ],
   },
   prefer: [/^mistral/, /^magistral/, /^codestral/],
-  limit: 16,
   small: "mistral-small-latest",
 };
 
@@ -179,7 +176,6 @@ const GROQ: ProviderSpec = {
     ],
   },
   prefer: [/llama/i, /kimi/i, /qwen/i, /gpt-oss/i],
-  limit: 16,
 };
 
 const OLLAMA: ProviderSpec = {
@@ -190,7 +186,6 @@ const OLLAMA: ProviderSpec = {
   keyHint: "Runs on this machine, nothing to sign in to",
   docsUrl: "https://ollama.com/",
   models: { default: "llama3.2", options: [{ id: "llama3.2", label: "llama3.2" }] },
-  limit: 24,
 };
 
 export const PROVIDER_SPECS: readonly ProviderSpec[] = [
@@ -213,7 +208,6 @@ export const CUSTOM_SPEC: ProviderSpec = {
   keyHint: "API key from your OpenAI-compatible endpoint",
   docsUrl: "https://platform.openai.com/docs/api-reference/models",
   models: { default: "", options: [] },
-  limit: 32,
 };
 
 export function specFor(kind: string): ProviderSpec | undefined {

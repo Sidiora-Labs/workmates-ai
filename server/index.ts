@@ -241,6 +241,7 @@ const SECURITY_HEADERS = {
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "connect-src 'self'",
+    "frame-src 'self' https://*.on.ascii.dev",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'none'",

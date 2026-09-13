@@ -24,6 +24,12 @@ async function call(cfg: AppConfig, path: string, init: RequestInit = {}) {
   return { ok: response.ok && body?.ok !== false, status: response.status, body };
 }
 
+export function boxError(action: string, status: number, body: any, token = "") {
+  const detail = body?.error?.message ?? body?.message ?? (typeof body?.error === "string" ? body.error : "");
+  const safeDetail = token ? String(detail).split(token).join("[redacted]") : String(detail);
+  return new Error(`Box ${action} failed (${status})${safeDetail ? `: ${safeDetail.slice(0, 1000)}` : ""}`);
+}
+
 export function boxConfigured(cfg: AppConfig) {
   return Boolean(cfg.box?.token);
 }
@@ -44,7 +50,8 @@ async function candidateNames(botId: string) {
 
 export async function findBox(cfg: AppConfig, botId: string) {
   const names = await candidateNames(botId);
-  const { body } = await call(cfg, "/boxes");
+  const { ok, status, body } = await call(cfg, "/boxes");
+  if (!ok) throw boxError("listing", status, body, cfg.box?.token);
   const boxes: any[] = body?.boxes ?? [];
   return boxes.find((box) => names.includes(box.name) && box.state !== "error") ?? null;
 }
@@ -79,8 +86,11 @@ async function mintDesktopUrl(cfg: AppConfig, boxId: string, budgetMs = 60_000) 
     await sleep(3000);
   }
 
-  const { body } = await call(cfg, `/boxes/${boxId}/desktop`, { method: "POST" });
-  return body?.desktopUrl ?? body?.url ?? null;
+  const { ok, status, body } = await call(cfg, `/boxes/${boxId}/desktop`, { method: "POST" });
+  if (!ok) throw boxError("desktop connection", status, body, cfg.box?.token);
+  const url = body?.desktopUrl ?? body?.url;
+  if (!url) throw new Error("The desktop is still starting. Try opening it again in a moment.");
+  return url;
 }
 
 export async function runCommand(
@@ -143,7 +153,17 @@ export async function boxStatus(cfg: AppConfig, botId: string) {
   };
 }
 
-export async function provisionBox(cfg: AppConfig, botId: string, botName: string) {
+const provisioning = new Map<string, Promise<Awaited<ReturnType<typeof provisionBoxOnce>>>>();
+
+export function provisionBox(cfg: AppConfig, botId: string, botName: string) {
+  const existing = provisioning.get(botId);
+  if (existing) return existing;
+  const pending = provisionBoxOnce(cfg, botId, botName).finally(() => provisioning.delete(botId));
+  provisioning.set(botId, pending);
+  return pending;
+}
+
+async function provisionBoxOnce(cfg: AppConfig, botId: string, botName: string) {
   if (!boxConfigured(cfg)) {
     throw new Error('box provider not enabled. Add {"box":{"token":"…"}} to ~/.workmates/config.json');
   }
@@ -153,12 +173,18 @@ export async function provisionBox(cfg: AppConfig, botId: string, botName: strin
   const existed = Boolean(box);
 
   if (!box) {
-    const created = await call(cfg, "/boxes", {
+    let created = await call(cfg, "/boxes", {
       method: "POST",
       body: JSON.stringify({ ttlSeconds: 8 * 60 * 60 }),
     });
+    if (!created.ok && created.status === 400 && (created.body?.error?.code ?? created.body?.code) === "trial_auto_stop_required") {
+      created = await call(cfg, "/boxes", {
+        method: "POST",
+        body: JSON.stringify({ ttlSeconds: 2 * 60 * 60 }),
+      });
+    }
     if (!created.ok || !created.body?.box?.id) {
-      throw new Error(`box create failed (${created.status})`);
+      throw boxError("creation", created.status, created.body, cfg.box?.token);
     }
     box = created.body.box;
     await call(cfg, `/boxes/${box.id}`, { method: "PATCH", body: JSON.stringify({ name }) });

@@ -38,13 +38,15 @@ test("preferred families come first, in the order the spec lists them", () => {
     "google/gemini-flash",
     "anthropic/claude-sonnet",
     "x-ai/grok-4",
+    "someone-else/model",
   ]);
 });
 
-test("the list is capped, because a gateway can serve hundreds", () => {
+test("the complete gateway catalog remains available, including nonpreferred defaults", () => {
   const many = Array.from({ length: 400 }, (_, i) => `vendor/model-${i}`);
-  const out = chooseModels(spec({ prefer: [/^vendor\//], limit: 12 }), many);
-  assert.equal(out?.options.length, 12);
+  const out = chooseModels(spec({ prefer: [/^vendor\//], models: { default: "sakana/fugu-max", options: [] } }), [...many, "sakana/fugu-max"]);
+  assert.equal(out?.options.length, 401);
+  assert.equal(out?.default, "sakana/fugu-max");
 });
 
 test("the configured default survives a refresh when the provider still serves it", () => {

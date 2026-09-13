@@ -1,3 +1,4 @@
+import { isRemoteServer } from "@/components/settings/ServerConnection";
 import { useEffect, useState } from "react";
 import Check from "lucide-react/dist/esm/icons/check.mjs";
 import Crown from "lucide-react/dist/esm/icons/crown.mjs";
@@ -502,17 +503,17 @@ export function SettingsPanel({ bot }: { bot: Bot }) {
               <div>
                 <div className="text-[13px] text-foreground">Automatic</div>
                 <div className="text-[12px] text-muted-foreground">
-                  The cloud box when one exists, else this computer
+                  {isRemoteServer() ? "A cloud box connected to your workspace" : "The cloud box when one exists, else this computer"}
                 </div>
               </div>
               <Switch
                 checked={!bot.computer}
-                onCheckedChange={(on) => patch({ computer: on ? null : "local" })}
+                onCheckedChange={(on) => patch({ computer: on ? null : isRemoteServer() ? "cloud" : "local" })}
               />
             </div>
             {!bot.computer && !state.config?.box?.configured && (
               <div className="mt-2 rounded-xl bg-muted/60 px-3 py-2 text-[12px] text-muted-foreground">
-                No cloud box is set up, so Auto will use this computer.{" "}
+                {isRemoteServer() ? "Connect Box to give this agent a cloud computer." : "No cloud box is set up, so Auto will use this computer."}{" "}
                 <button
                   className="font-medium text-foreground underline-offset-2 hover:underline"
                   onClick={() => dispatch({ type: "toggleComputer", open: true })}
@@ -537,9 +538,11 @@ export function SettingsPanel({ bot }: { bot: Bot }) {
               ).map(([mode, label]) => (
                 <button
                   key={mode}
+                  disabled={isRemoteServer() && (mode === "local" || mode === "sandbox")}
+                  title={isRemoteServer() && (mode === "local" || mode === "sandbox") ? "Available with a local Workmates server. Use Cloud box in this hosted workspace." : undefined}
                   onClick={() => patch({ computer: mode })}
                   className={cn(
-                    "rounded-lg py-1.5 text-[12.5px] transition-colors duration-150",
+                    "rounded-lg py-1.5 text-[12.5px] transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40",
                     bot.computer === mode
                       ? "bg-background font-medium text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground",

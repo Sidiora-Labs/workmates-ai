@@ -16,7 +16,9 @@ test("browser and desktop share a persistent hosted workspace, sessions, uploads
   try {
     assert.equal(await checkCloudServer(server.url, token), server.url);
     await assert.rejects(checkCloudServer(server.url, "wrong".repeat(10)), /accept/);
-    assert.equal((await fetch(`${server.url}/`)).status, 200);
+    const page = await fetch(`${server.url}/`);
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get("content-security-policy")!, /frame-src 'self' https:\/\/\*\.on\.ascii\.dev(?:;|$)/);
     assert.equal((await fetch(`${server.url}/assets/missing.js`)).status, 404);
     const manifest = await fetch(`${server.url}/manifest.webmanifest`);
     assert.match(manifest.headers.get("content-type")!, /manifest/);

@@ -293,7 +293,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               Welcome back
             </h1>
             <p className="mt-1 text-center text-[13px] leading-relaxed text-muted-foreground">
-              This Mac already has a Workmates workspace: {prior.agents}{" "}
+              {isRemoteServer() ? "Your server already has a Workmates workspace:" : "This computer already has a Workmates workspace:"} {prior.agents}{" "}
               {prior.agents === 1 ? "agent" : "agents"}
               {prior.rooms > 0 && `, ${prior.rooms} ${prior.rooms === 1 ? "room" : "rooms"}`} and{" "}
               {prior.messages.toLocaleString()}{" "}
