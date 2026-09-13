@@ -1,3 +1,4 @@
+import { isRemoteServer } from "@/components/settings/ServerConnection";
 import { useCallback, useEffect, useState } from "react";
 import AlertTriangle from "lucide-react/dist/esm/icons/alert-triangle.mjs";
 import Check from "lucide-react/dist/esm/icons/check.mjs";
@@ -320,7 +321,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               Let's check your engines
             </h1>
             <p className="mt-1 text-center text-[13px] leading-relaxed text-muted-foreground">
-              Agents run on the AI tools already installed on this Mac. Everything stays local.
+              {isRemoteServer() ? "Your agents run on your cloud server. Your work is available on every connected device." : "Agents run on the AI tools installed on this computer. Your workspace stays here."}
             </p>
             <div className="mt-5 flex flex-col gap-2">
               {!instances ? (
@@ -489,7 +490,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
                 }
                 onOpenSettings={() => window.rooms?.permOpenSettings?.("mic")}
               />
-              <PermissionRow
+              {!isRemoteServer() && <PermissionRow
                 icon={<Monitor size={17} />}
                 title="Screen preview"
                 detail="Shows this Mac's screen in the Computer panel when an agent works locally."
@@ -502,7 +503,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
                     .then(() => window.rooms?.permStatus?.().then(setPerms))
                 }
                 onOpenSettings={() => window.rooms?.permOpenSettings?.("screen")}
-              />
+              />}
             </div>
             <Button size="lg" onClick={finish} className="mt-5 w-full">
               Start using Workmates

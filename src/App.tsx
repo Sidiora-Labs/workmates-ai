@@ -1,3 +1,4 @@
+import { isRemoteServer } from "@/components/settings/ServerConnection";
 import { useEffect, useState } from "react";
 import Loader2 from "lucide-react/dist/esm/icons/loader-2.mjs";
 import { StoreProvider, useStore } from "@/state/store";
@@ -51,7 +52,7 @@ function Shell() {
           </div>
           {!state.connected && (
             <div className="text-[12px]">
-              Start it with <code className="rounded bg-muted px-1.5 py-0.5">pnpm dev:server</code>
+              {isRemoteServer() ? "Reconnecting to your cloud workspace…" : <>Start it with <code className="rounded bg-muted px-1.5 py-0.5">pnpm dev:server</code></>}
             </div>
           )}
         </main>

@@ -1,6 +1,6 @@
 # Workmates architecture
 
-Workmates is a local-first desktop workspace for personal AI agents. A React client presents conversations and work, a Node.js harness owns execution and saved state, and Electron supplies desktop integration. Provider accounts, optional computers, and remote access extend that local workspace.
+Workmates is a local-first desktop workspace for personal AI agents. A shared React client presents conversations and work in Electron or a browser/PWA. A Node.js harness owns execution and saved state, and Electron supplies desktop integration. Provider accounts, optional computers, and remote access extend that local workspace.
 
 ## Source map
 
@@ -66,7 +66,7 @@ During a room turn, `activeRoom` maps a task thread to the room receiving its me
 
 ## Durable work and local persistence
 
-[Configuration](../server/core/config.ts) locates application data under `~/.workmates`. The application stores documents and append-only records directly on disk without a database service.
+[Configuration](../server/core/config.ts) locates application data under `~/.workmates`, or the explicit `WORKMATES_DATA_DIR` (the cloud image uses `/data/workspace`). The application stores documents and append-only records directly on disk without a database service.
 
 | Location | Contents |
 | --- | --- |
@@ -88,8 +88,14 @@ The [ledger](../server/stores/ledger.ts) links selected activity entries using s
 
 ## Desktop and optional remote access
 
-Electron launches the compiled harness as a utility process in packaged builds, waits for its health endpoint, and loads the local UI. Development uses the configured Vite URL. The preload bridge exposes desktop operations including notifications, file dialogs, shortcuts, speech, and computer integration. Packaging scripts include macOS, Linux, and Windows targets; native Swift helpers and the CUA driver depend on platform support and installed resources.
+Electron serves its installed UI through a loopback proxy. In local mode it launches the compiled harness as a utility process and waits for health; in cloud mode the proxy forwards HTTP and SSE to the configured server and injects the owner credential outside the renderer. Development can use the Vite UI through that proxy. The preload bridge exposes desktop operations including notifications, file dialogs, shortcuts, speech, and computer integration. Packaging scripts include macOS, Linux, and Windows targets; native Swift helpers and the CUA driver depend on platform support and installed resources.
 
 The harness binds to loopback by default. Enabling remote access changes the bind address on restart. Pairing exchanges an expiring code or token for a revocable device credential whose hash is stored in configuration. Network API requests require the appropriate paired-device authentication and origin checks.
 
 The optional relay is a separate service connection. `RelayLink` opens an outbound stream, encrypts device-specific payloads using [relay-crypto](../server/remote/relay-crypto.ts), forwards authenticated API requests to the local harness, and returns encrypted results. It also retries interrupted connections. The local process remains responsible for execution and workspace state, so remote access depends on that process remaining available.
+
+## Hosted web and PWA client
+
+In hosted mode the same server serves the compiled client publicly, with workspace APIs behind owner authentication. Desktop clients use the server bearer key. Browsers exchange that key at `/api/session` for an HttpOnly, SameSite cookie; only random session hashes are stored on the durable volume. Origin checks cover cookie-authorized requests. Sign-out revokes the session; key rotation invalidates stored sessions on restart.
+
+Both clients hydrate from the same stores and subscribe to the same SSE stream. Cloud-mode attachments upload bytes to the server rather than sending client filesystem paths. The web manifest and icons support installation, while the service worker only caches a static offline recovery page, never private API data or conversations. Connection loss does not move execution to the phone. See [cloud setup](CLOUD_SERVER.md) for configuration and runtime boundaries.

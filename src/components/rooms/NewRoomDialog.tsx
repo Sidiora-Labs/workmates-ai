@@ -1,3 +1,4 @@
+import { isRemoteServer } from "@/components/settings/ServerConnection";
 import { useEffect, useMemo, useState } from "react";
 import Check from "lucide-react/dist/esm/icons/check.mjs";
 import Crown from "lucide-react/dist/esm/icons/crown.mjs";
@@ -153,7 +154,7 @@ export function NewRoomDialog() {
         {tab === "library" ? (
           <>
             <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-0.5">
-              {Boolean(window.rooms?.pickFolder) && (
+              {!isRemoteServer() && Boolean(window.rooms?.pickFolder) && (
                 <div className="mb-3 flex items-center gap-3 rounded-xl border border-dashed bg-card p-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-[13.5px] font-semibold text-foreground">

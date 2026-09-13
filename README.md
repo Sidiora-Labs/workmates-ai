@@ -10,7 +10,7 @@
 
 A local-first workspace for working with AI agents, individually and together. Give agents roles, bring them into a shared room, and follow their work through conversations, tool activity, and approval requests.
 
-This repository contains the React interface, local Node.js server, and Electron desktop application.
+This repository contains the React web/PWA interface, Node.js agent server, and installable Electron desktop application. Run locally, or host the server on Railway and connect from both desktop and mobile.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.png">
@@ -61,13 +61,17 @@ pnpm dev:desktop
 
 The repository includes packaging targets for macOS, Linux, and Windows. Native integrations and packaging prerequisites differ by platform; see the [packaging configuration](electron-builder.yml) and [build workflows](.github/workflows). Check the assets attached to a release for the builds actually available.
 
+## Cloud server with desktop and mobile access
+
+Host one workspace on Railway, connect the desktop app to its address, and open the same address on your phone. The browser client can be installed on your home screen; both clients share agents, conversations, live updates, and uploaded files. See the [cloud server setup](docs/CLOUD_SERVER.md) for the volume, access key, and connection steps.
+
 ## Engines and integrations
 
 Workmates supports agent CLIs such as Claude Code, Codex, Gemini CLI, OpenCode, and Pi, along with OpenRouter, other supported API providers, custom OpenAI-compatible endpoints, and Ollama.
 
 Settings shows the connection requirements for each engine. Tool access depends on the driver, model, and configured integrations. Several API drivers support function calling, so API connections are not uniformly limited to text replies.
 
-Provider connections and agent processes are managed by the local server. The interface sends commands to that server and receives streamed events.
+Provider connections and agent processes are managed by the workspace server. The interface sends commands to that server and receives streamed events.
 
 ## Workspace data and connections
 

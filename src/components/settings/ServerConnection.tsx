@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { ServerConnection } from "@/types/bridge";
+import { BrowserConnection, BrowserConnectionCard } from "./BrowserConnection";
 import { Button } from "@/components/ui/button";
 
 let remote = false;
@@ -53,21 +54,29 @@ function ConnectionForm({ status, problem, retry }: { status: ServerConnection; 
 export function ServerConnectionCard() {
   const [status, setStatus] = useState<ServerConnection | null>(null);
   useEffect(() => { void window.rooms?.serverConnection?.().then(setStatus); }, []);
-  if (!status) return null;
+  if (!status) return remote && !window.rooms?.serverConnection ? <BrowserConnectionCard /> : null;
   return <div className="mt-4 rounded-[10px] border bg-card p-4"><ConnectionForm status={status} /></div>;
 }
 
 export function ServerConnectionGate({ children }: { children: ReactNode }) {
   const desktop = Boolean(window.rooms?.serverConnection);
   const [status, setStatus] = useState<ServerConnection | null>(null);
-  const [ready, setReady] = useState(!desktop);
+  const [ready, setReady] = useState(false);
   const [problem, setProblem] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (!desktop) return;
     let alive = true; setProblem("");
     void (async () => {
       try {
+        if (!desktop) {
+          const response = await fetch("/api/health", { cache: "no-store", signal: AbortSignal.timeout(15_000) });
+          const health = await response.json();
+          if (!response.ok || health.app !== "workmates") throw new Error("Your Workmates server could not be reached.");
+          if (!alive) return;
+          remote = health.mode === "hosted";
+          setReady(!remote || health.authenticated === true);
+          return;
+        }
         const connection = await window.rooms!.serverConnection();
         if (!alive) return;
         remote = connection.mode === "remote"; setStatus(connection);
@@ -81,10 +90,26 @@ export function ServerConnectionGate({ children }: { children: ReactNode }) {
     })();
     return () => { alive = false; };
   }, [desktop, attempt]);
+  useEffect(() => {
+    if (desktop || !ready || !remote) return;
+    const check = () => {
+      if (document.visibilityState === "hidden") return;
+      void fetch("/api/health", { cache: "no-store", signal: AbortSignal.timeout(10_000) })
+        .then((response) => response.json()).then((health) => {
+          if (health.mode === "hosted" && !health.authenticated) {
+            setReady(false); setProblem("Your session has ended. Sign in again to continue.");
+          }
+        }).catch(() => {});
+    };
+    const timer = setInterval(check, 30_000);
+    window.addEventListener("focus", check);
+    window.addEventListener("online", check);
+    return () => { clearInterval(timer); window.removeEventListener("focus", check); window.removeEventListener("online", check); };
+  }, [desktop, ready]);
   if (ready) return children;
   return <main className="flex h-full items-center justify-center overflow-y-auto bg-background p-6 text-foreground">
     <div className="w-full max-w-md rounded-2xl border bg-card p-6"><div className="mb-6 text-sm font-semibold tracking-tight">Workmates</div>
-      {status ? <ConnectionForm key={`${status.mode}:${attempt}`} status={status} problem={problem} retry={() => setAttempt((value) => value + 1)} /> :
+      {!desktop ? <BrowserConnection problem={problem} retry={() => setAttempt((value) => value + 1)} /> : status ? <ConnectionForm key={`${status.mode}:${attempt}`} status={status} problem={problem} retry={() => setAttempt((value) => value + 1)} /> :
         <p role={problem ? "alert" : "status"} className="text-sm text-muted-foreground">{problem || "Opening your workspace…"}</p>}
     </div>
   </main>;

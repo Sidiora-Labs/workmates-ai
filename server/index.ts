@@ -47,6 +47,7 @@ import { addressees, RoomStore, MAX_MEMBERS, type RoomRecord } from "./stores/ro
 import { extractTeamPlan, MAX_HIRES, normalizePlan, TEAM_PROTOCOL, type TeamPlan } from "./agents/teams.ts";
 import { houseStyle, HOUSE_STYLE } from "./core/house-style.ts";
 import { bearerToken, isLocalRequest, isSameOrigin } from "./core/http-guard.ts";
+import { browserOwner, sameBrowserOrigin, sessionCookie } from "./core/browser-session.ts";
 import { HOSTED, SERVER_PORT, SERVER_TOKEN, isServerOwner, publicOrigin, validateHosting } from "./core/hosting.ts";
 import {
   bindHost,
@@ -229,6 +230,7 @@ const MIME: Record<string, string> = {
   ".png": "image/png",
   ".ico": "image/x-icon",
   ".json": "application/json",
+  ".webmanifest": "application/manifest+json",
   ".woff2": "font/woff2",
 };
 
@@ -2528,14 +2530,61 @@ function readBody(req: IncomingMessage): Promise<any> {
   });
 }
 
+function serveClient(path: string, method: string, res: ServerResponse): boolean {
+  if ((method === "GET" || method === "HEAD") && !path.startsWith("/api/") && !path.startsWith("/hook/") && STATIC_DIR) {
+    let requested: string;
+    try { requested = path === "/" ? "/index.html" : decodeURIComponent(path); }
+    catch { json(res, 400, { error: "invalid path" }); return true; }
+    const root = resolve(STATIC_DIR);
+    const file = resolve(root, `.${requested}`);
+    if (file !== root && !file.startsWith(root + sep)) {
+      json(res, 403, { error: "forbidden" }); return true;
+    }
+    try {
+      const data = readFileSync(file);
+      res.writeHead(200, {
+        "content-type": MIME[extname(file)] ?? "application/octet-stream",
+        ...SECURITY_HEADERS,
+        "cache-control": "no-cache",
+      });
+      res.end(method === "HEAD" ? undefined : data); return true;
+    } catch {
+      if (extname(requested)) { json(res, 404, { error: "asset not found" }); return true; }
+      try {
+        const data = readFileSync(join(STATIC_DIR, "index.html"));
+        res.writeHead(200, { "content-type": "text/html", "cache-control": "no-cache", ...SECURITY_HEADERS });
+        res.end(method === "HEAD" ? undefined : data); return true;
+      } catch {
+      }
+    }
+  }
+
+  return false;
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   const path = url.pathname;
   const method = req.method ?? "GET";
-  const owner = isServerOwner(req);
+  if (HOSTED && path.startsWith("/api/")) res.setHeader("cache-control", "no-store");
+  const owner = isServerOwner(req) || browserOwner(req);
+  if (HOSTED && path === "/api/session" && (method === "POST" || method === "DELETE")) {
+    if (!sameBrowserOrigin(req)) return json(res, 403, { error: "Open Workmates at its server address to sign in." });
+    if (method === "POST" && !isServerOwner(req)) return json(res, 401, { error: "That server access key is incorrect." });
+    try {
+      res.setHeader("set-cookie", sessionCookie(req, method === "DELETE"));
+      res.setHeader("cache-control", "no-store");
+      return json(res, 200, { ok: true });
+    } catch {
+      return json(res, 500, { error: "Could not save your sign-in. Check the server data volume." });
+    }
+  }
   if (HOSTED && method === "GET" && path === "/api/health") {
+    res.setHeader("cache-control", "no-store");
     return json(res, 200, { app: "workmates", mode: "hosted", authenticated: owner, version: APP_VERSION });
   }
+
+  if (HOSTED && serveClient(path, method, res)) return;
 
   const hookMatch = path.match(/^\/hook\/([\w-]+)$/);
   if (hookMatch) {
@@ -2632,6 +2681,8 @@ const server = createServer(async (req, res) => {
       return json(res, 401, { error: "pair this device first" });
     }
   }
+
+  if (!HOSTED && serveClient(path, method, res)) return;
 
   try {
     if (method === "GET" && path === "/api/events") {
@@ -5471,30 +5522,6 @@ const server = createServer(async (req, res) => {
         }
         case "screenshot":
           return json(res, 200, await box.screenshotBox(cfg, botId));
-      }
-    }
-
-    if (method === "GET" && !path.startsWith("/api/") && STATIC_DIR) {
-      const requested = path === "/" ? "/index.html" : decodeURIComponent(path);
-      const root = resolve(STATIC_DIR);
-      const file = resolve(root, `.${requested}`);
-      if (file !== root && !file.startsWith(root + sep)) {
-        return json(res, 403, { error: "forbidden" });
-      }
-      try {
-        const data = readFileSync(file);
-        res.writeHead(200, {
-          "content-type": MIME[extname(file)] ?? "application/octet-stream",
-          ...SECURITY_HEADERS,
-        });
-        return res.end(data);
-      } catch {
-        try {
-          const data = readFileSync(join(STATIC_DIR, "index.html"));
-          res.writeHead(200, { "content-type": "text/html", ...SECURITY_HEADERS });
-          return res.end(data);
-        } catch {
-        }
       }
     }
 
