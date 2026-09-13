@@ -29,6 +29,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
+import { ServerConnectionCard, isRemoteServer } from "./ServerConnection";
 
 const THEME_OPTIONS: Array<{ value: Theme; label: string; icon: React.ReactNode }> = [
   { value: "light", label: "Light", icon: <Sun size={14} /> },
@@ -245,7 +246,7 @@ function AboutYou() {
         )}
       </div>
       <div className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
-        Optional context every agent gets. Stays on this Mac.
+        Optional context every agent gets. Saved in your workspace.
       </div>
       <Textarea
         value={value}
@@ -450,6 +451,7 @@ export function AppSettingsPanel() {
           <div className="min-w-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-5">
             {tab === "general" && (
               <>
+                <ServerConnectionCard />
                 <div className="mt-4 rounded-[10px] border bg-card p-4">
                   <div className="text-[13.5px] font-semibold text-foreground">Appearance</div>
                   <div className="mt-0.5 text-[12.5px] text-muted-foreground">
@@ -489,7 +491,7 @@ export function AppSettingsPanel() {
               <div className="mt-4 rounded-[10px] border bg-card p-4">
                 <div className="text-[13.5px] font-semibold text-foreground">Apps and computers</div>
                 <div className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
-                  Shared by all agents. Keys stay on this Mac.
+                  Shared by all agents. Keys stay on {isRemoteServer() ? "your server" : "this computer"}.
                 </div>
                 <div className="mt-4 flex flex-col gap-4">
                   <ApiKeyRow

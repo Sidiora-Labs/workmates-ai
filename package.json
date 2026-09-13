@@ -29,6 +29,9 @@
     "node": ">=22"
   },
   "scripts": {
+    "start": "node dist-server/index.js",
+    "build:cloud": "tsc -p tsconfig.server.build.json",
+    "build:web": "tsc -b && vite build",
     "dev": "vite",
     "dev:server": "node server/index.ts",
     "dev:desktop": "node scripts/bundle-updater.mjs && electron .",

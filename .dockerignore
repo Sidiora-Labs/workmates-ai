@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+dist-server
+release
+.env
+.env.*
+.codegraph
+electron
+test
+docs
+*.log

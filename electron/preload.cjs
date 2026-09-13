@@ -9,6 +9,8 @@ function subscription(channel) {
 }
 
 contextBridge.exposeInMainWorld("rooms", {
+  serverConnection: () => ipcRenderer.invoke("server:connection"),
+  configureServer: (connection) => ipcRenderer.invoke("server:configure", connection),
   screenFrame: () => ipcRenderer.invoke("screen:frame"),
 
   notifyShow: (notice) => ipcRenderer.invoke("notify:show", notice),

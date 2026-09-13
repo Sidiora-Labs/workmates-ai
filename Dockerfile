@@ -1,0 +1,20 @@
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+RUN npm install --global pnpm@10
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY server ./server
+COPY tsconfig.server.json tsconfig.server.build.json ./
+RUN pnpm build:cloud
+
+FROM node:22-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git python3 curl openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /app/dist-server ./dist-server
+COPY package.json ./
+ENV NODE_ENV=production \
+    WORKMATES_HOSTED=1 \
+    WORKMATES_DATA_DIR=/data/workspace
+EXPOSE 8080
+CMD ["node", "dist-server/index.js"]

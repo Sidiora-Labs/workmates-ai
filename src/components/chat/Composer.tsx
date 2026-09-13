@@ -19,9 +19,11 @@ import {
   isLongPaste,
   pasteAttachment,
   uploadImageAttachment,
+  uploadFileAttachment,
   type Attachment,
 } from "@/lib/attachments";
 import { Button } from "@/components/ui/button";
+import { isRemoteServer } from "@/components/settings/ServerConnection";
 
 function useAutoSize(value: string) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -89,6 +91,7 @@ export function Composer({
     void intakeFiles(files, {
       pathOf: (file) => window.rooms?.filePath?.(file) ?? "",
       uploadImage: uploadImageAttachment,
+      uploadFile: isRemoteServer() ? uploadFileAttachment : undefined,
     }).then(({ attachments: added, refused }) => {
       if (added.length) setAttachments((current) => [...current, ...added]);
       setAttachNotice(refused);

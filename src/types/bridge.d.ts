@@ -6,9 +6,18 @@ export interface UpdateState {
   percent?: number;
 }
 
+export interface ServerConnection {
+  mode: "choose" | "local" | "remote";
+  url: string;
+  configured: boolean;
+  canRememberKey: boolean;
+}
+
 declare global {
   interface Window {
     rooms?: {
+      serverConnection(): Promise<ServerConnection>;
+      configureServer(connection: { mode: "local" | "remote"; url?: string; token?: string; remember?: boolean }): Promise<ServerConnection>;
       screenFrame(): Promise<string | null>;
 
       speechStart(): Promise<void>;

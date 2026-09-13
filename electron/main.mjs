@@ -11,6 +11,7 @@ import {
   nativeTheme,
   Notification,
   screen,
+  safeStorage,
   session,
   shell,
   systemPreferences,
@@ -22,6 +23,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { normalizeBadgeCount, resolveWindowState } from "./window-state.mjs";
+import { checkCloudServer, startDesktopProxy } from "./desktop-proxy.mjs";
 
 import electronUpdater from "./vendor/electron-updater.cjs";
 
@@ -30,6 +32,7 @@ import { nativeHelper } from "./native-helper.mjs";
 import { startSpeech, stopSpeech } from "./speech.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+if (process.env.WORKMATES_DESKTOP_USER_DATA) app.setPath("userData", path.resolve(process.env.WORKMATES_DESKTOP_USER_DATA));
 const APP_ICON = path.join(HERE, "resources/app-icon.png");
 
 const DEV_URL = process.env.ELECTRON_START_URL ?? "http://127.0.0.1:5199";
@@ -58,6 +61,84 @@ async function adoptLoginShellPath() {
 let serverProcess = null;
 let serverPort = CANDIDATE_PORTS[0];
 let serverStarted = true;
+let localServerPort = Number(process.env.WORKMATES_PORT || CANDIDATE_PORTS[0]);
+let desktopProxy = null;
+let connection = { mode: "choose", url: "", token: "" };
+
+const connectionFile = () => path.join(app.getPath("userData"), "server-connection.json");
+const canRememberKey = () => safeStorage.isEncryptionAvailable() &&
+  (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text");
+
+function readConnection() {
+  if (process.env.WORKMATES_SERVER_URL) {
+    return { mode: "remote", url: process.env.WORKMATES_SERVER_URL, token: process.env.WORKMATES_SERVER_TOKEN || "" };
+  }
+  try {
+    const saved = JSON.parse(fs.readFileSync(connectionFile(), "utf8"));
+    if (saved.mode === "local") return { mode: "local", url: "", token: "" };
+    if (saved.mode === "remote") {
+      let token = "";
+      if (saved.key && canRememberKey()) {
+        try { token = safeStorage.decryptString(Buffer.from(saved.key, "base64")); } catch {}
+      }
+      return { mode: "remote", url: String(saved.url || ""), token };
+    }
+  } catch {}
+  const existing = fs.existsSync(path.join(app.getPath("home"), ".workmates", "config.json"));
+  return { mode: existing ? "local" : "choose", url: "", token: "" };
+}
+
+function connectionStatus() {
+  return {
+    mode: connection.mode,
+    url: connection.url,
+    configured: connection.mode === "local" ? serverStarted : connection.mode === "remote" && Boolean(connection.token),
+    canRememberKey: canRememberKey(),
+  };
+}
+
+function trustedConnectionCaller(event) {
+  try { return new URL(event.senderFrame.url).origin === desktopProxy?.origin; }
+  catch { return false; }
+}
+
+ipcMain.handle("server:connection", (event) => {
+  if (!trustedConnectionCaller(event)) throw new Error("not a Workmates window");
+  return connectionStatus();
+});
+ipcMain.handle("server:configure", async (event, value) => {
+  if (!trustedConnectionCaller(event)) throw new Error("not a Workmates window");
+  const mode = value?.mode;
+  if (mode !== "local" && mode !== "remote") throw new Error("Choose a connection type");
+  let next;
+  if (mode === "remote") {
+    const token = String(value.token || (connection.mode === "remote" && value.url === connection.url ? connection.token : ""));
+    const url = await checkCloudServer(value.url, token);
+    next = { mode, url, token };
+  } else {
+    if (app.isPackaged && !serverProcess) serverStarted = await startServer();
+    if (!serverStarted) throw new Error("Could not start the local server. Try a cloud connection or restart Workmates.");
+    if (connection.mode !== "local") void startCua().catch(() => {});
+    next = { mode, url: "", token: "" };
+  }
+  const saved = { mode, ...(mode === "remote" ? { url: next.url } : {}) };
+  if (mode === "remote" && value.remember !== false && canRememberKey()) {
+    saved.key = safeStorage.encryptString(next.token).toString("base64");
+  }
+  fs.mkdirSync(path.dirname(connectionFile()), { recursive: true });
+  fs.writeFileSync(`${connectionFile()}.tmp`, JSON.stringify(saved), { mode: 0o600 });
+  fs.renameSync(`${connectionFile()}.tmp`, connectionFile());
+  desktopProxy?.disconnect();
+  connection = next;
+  if (mode === "remote") {
+    if (serverProcess) { serverProcess.kill(); serverProcess = null; }
+    void stopCua();
+  }
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.webContents !== event.sender) win.reload();
+  }
+  return connectionStatus();
+});
 
 if (!app.requestSingleInstanceLock()) {
   app.exit(0);
@@ -78,6 +159,8 @@ async function startServerOn(port) {
       ...process.env,
       WORKMATES_STATIC_DIR: path.join(process.resourcesPath, "ui"),
       WORKMATES_PORT: String(port),
+      WORKMATES_HOSTED: "0",
+      WORKMATES_SERVER_TOKEN: "",
     },
     stdio: "inherit",
   });
@@ -114,7 +197,7 @@ async function startServer() {
       const child = await startServerOn(port);
       if (child) {
         serverProcess = child;
-        serverPort = port;
+        localServerPort = port;
         return true;
       }
     }
@@ -255,11 +338,7 @@ let quickWin = null;
 let quickAccelerator = null;
 
 function appUrl(query = "") {
-  const base = app.isPackaged
-    ? serverStarted
-      ? `http://127.0.0.1:${serverPort}`
-      : STARTUP_FAILURE_PAGE
-    : DEV_URL;
+  const base = desktopProxy?.origin || STARTUP_FAILURE_PAGE;
   return query ? `${base}${base.includes("?") ? "&" : "?"}${query}` : base;
 }
 
@@ -277,7 +356,7 @@ function quickWindow() {
     skipTaskbar: true,
     fullscreenable: false,
     webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
+      preload: path.join(HERE, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -395,11 +474,7 @@ function createWindow() {
 
   win.webContents.on("will-attach-webview", (event) => event.preventDefault());
 
-  if (app.isPackaged) {
-    win.loadURL(serverStarted ? `http://127.0.0.1:${serverPort}` : STARTUP_FAILURE_PAGE);
-  } else {
-    win.loadURL(DEV_URL);
-  }
+  win.loadURL(appUrl());
 }
 
 ipcMain.handle("screen:frame", async () => {
@@ -491,6 +566,7 @@ ipcMain.handle("notify:show", async (event, notice) => {
 });
 
 ipcMain.handle("dialog:pick-folder", async (event) => {
+  if (connection.mode === "remote") return null;
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win.isDestroyed()) return null;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
@@ -579,11 +655,8 @@ ipcMain.handle("speech:stop", () => stopSpeech());
 
 async function restoreQuickShortcut() {
   try {
-    const { readFileSync } = await import("node:fs");
-    const { homedir } = await import("node:os");
-    const raw = JSON.parse(
-      readFileSync(path.join(homedir(), ".workmates", "config.json"), "utf8"),
-    );
+    const response = await fetch(`http://127.0.0.1:${serverPort}/api/config`);
+    const raw = await response.json();
     applyQuickShortcut(raw?.shortcuts?.quickAsk ?? null);
   } catch {
   }
@@ -615,9 +688,20 @@ app.whenReady().then(async () => {
   await adoptLoginShellPath();
 
   registerCuaIpc();
-  startCua().catch((error) => console.error("[cua] start failed:", error));
-
-  if (app.isPackaged) serverStarted = await startServer();
+  connection = readConnection();
+  if (connection.mode === "local") {
+    startCua().catch((error) => console.error("[cua] start failed:", error));
+    if (app.isPackaged) serverStarted = await startServer();
+  }
+  const staticDir = app.isPackaged ? path.join(process.resourcesPath, "ui") : process.env.WORKMATES_DESKTOP_STATIC_DIR;
+  desktopProxy = await startDesktopProxy({
+    staticDir,
+    devUrl: staticDir ? undefined : DEV_URL,
+    backend: () => connection.mode === "remote" && connection.token
+      ? { url: connection.url, token: connection.token }
+      : connection.mode === "local" && serverStarted ? { url: `http://127.0.0.1:${localServerPort}` } : null,
+  });
+  serverPort = Number(new URL(desktopProxy.origin).port);
   createWindow();
 
   if (app.isPackaged) {
@@ -666,7 +750,7 @@ app.on("before-quit", (event) => {
     serverProcess?.kill();
   } catch {
   }
-  stopCua().finally(() => {
+  Promise.all([stopCua(), desktopProxy?.close()]).finally(() => {
     daemonStopped = true;
     app.quit();
   });

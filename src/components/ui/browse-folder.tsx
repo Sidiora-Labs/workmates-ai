@@ -1,5 +1,6 @@
 import FolderOpen from "lucide-react/dist/esm/icons/folder-open.mjs";
 import { cn } from "@/lib/cn";
+import { isRemoteServer } from "@/components/settings/ServerConnection";
 
 export function BrowseFolderButton({
   onPick,
@@ -8,7 +9,7 @@ export function BrowseFolderButton({
   onPick: (path: string) => void;
   className?: string;
 }) {
-  if (!window.rooms?.pickFolder) return null;
+  if (!window.rooms?.pickFolder || isRemoteServer()) return null;
   return (
     <button
       type="button"

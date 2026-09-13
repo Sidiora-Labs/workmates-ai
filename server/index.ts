@@ -47,6 +47,7 @@ import { addressees, RoomStore, MAX_MEMBERS, type RoomRecord } from "./stores/ro
 import { extractTeamPlan, MAX_HIRES, normalizePlan, TEAM_PROTOCOL, type TeamPlan } from "./agents/teams.ts";
 import { houseStyle, HOUSE_STYLE } from "./core/house-style.ts";
 import { bearerToken, isLocalRequest, isSameOrigin } from "./core/http-guard.ts";
+import { HOSTED, SERVER_PORT, SERVER_TOKEN, isServerOwner, publicOrigin, validateHosting } from "./core/hosting.ts";
 import {
   bindHost,
   cancelPairing,
@@ -217,7 +218,8 @@ import * as workspace from "./agents/workspace.ts";
 import * as speech from "./integrations/speech.ts";
 import { speakable } from "./integrations/speech-text.ts";
 
-const PORT = Number(process.env.WORKMATES_PORT || 8799);
+validateHosting();
+const PORT = SERVER_PORT;
 const STATIC_DIR = process.env.WORKMATES_STATIC_DIR || null;
 const MIME: Record<string, string> = {
   ".html": "text/html",
@@ -2443,7 +2445,11 @@ async function providerCatalog() {
   return { providers: [...cli, ...api] };
 }
 
-const oauthCallback = (kind: string) => `http://127.0.0.1:${PORT}/api/oauth/${kind}/callback`;
+const oauthCallback = (kind: string) => {
+  const origin = HOSTED ? publicOrigin() : `http://127.0.0.1:${PORT}`;
+  if (!origin) throw new Error("Set WORKMATES_PUBLIC_URL before connecting with browser sign-in");
+  return `${origin}/api/oauth/${kind}/callback`;
+};
 
 async function connectProvider(kind: string, key: string, endpoint = "") {
   saveConfig({
@@ -2526,11 +2532,15 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   const path = url.pathname;
   const method = req.method ?? "GET";
+  const owner = isServerOwner(req);
+  if (HOSTED && method === "GET" && path === "/api/health") {
+    return json(res, 200, { app: "workmates", mode: "hosted", authenticated: owner, version: APP_VERSION });
+  }
 
   const hookMatch = path.match(/^\/hook\/([\w-]+)$/);
   if (hookMatch) {
     if (method !== "POST") return json(res, 405, { error: "POST the event body to this URL" });
-    if (!isLocalRequest(req) && !remoteEnabled()) {
+    if (!isLocalRequest(req) && !remoteEnabled() && !HOSTED) {
       return json(res, 403, { error: "not reachable from here" });
     }
     const hook = webhooks.byToken(hookMatch[1]);
@@ -2606,8 +2616,12 @@ const server = createServer(async (req, res) => {
   }
 
   const viaRelay = relayDeviceFor(req);
-  const local = viaRelay ? false : isLocalRequest(req);
-  if (!local && !viaRelay) {
+  const local = viaRelay ? false : owner || ((!HOSTED || Boolean(asAgent)) && isLocalRequest(req));
+  const oauthReturn = HOSTED && method === "GET" && /^\/api\/oauth\/[\w-]+\/callback$/.test(path);
+  if (!local && !viaRelay && !oauthReturn) {
+    if (HOSTED && !remoteEnabled()) {
+      return json(res, 401, { error: "connect with the server access key" });
+    }
     if (!remoteEnabled() || !isSameOrigin(req)) {
       return json(res, 403, { error: "cross-origin requests are not allowed" });
     }
@@ -3811,7 +3825,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === "GET" && path === "/api/health") {
-      return json(res, 200, { app: "workmates", pid: process.pid, static: Boolean(STATIC_DIR) });
+      return json(res, 200, { app: "workmates", mode: "local", pid: process.pid, static: Boolean(STATIC_DIR) });
     }
 
     if (method === "GET" && path === "/api/instances") {
@@ -5385,6 +5399,10 @@ const server = createServer(async (req, res) => {
       attachments.saveAttachment(req, res);
       return;
     }
+    if (method === "POST" && path === "/api/attachments/file") {
+      await attachments.saveFileAttachment(req, res);
+      return;
+    }
     m = path.match(/^\/api\/attachments\/([\w.-]+)$/);
     if (m && method === "GET") {
       attachments.serveAttachment(m[1], res);
@@ -5490,6 +5508,7 @@ const server = createServer(async (req, res) => {
 function redactSecrets(message: string): string {
   let out = message;
   const stored = [
+    SERVER_TOKEN,
     cfg.xai?.key,
     cfg.composio?.key,
     cfg.composio?.apiKey,
@@ -5506,11 +5525,13 @@ function redactSecrets(message: string): string {
     .replace(/\bwm_live_[0-9a-f]{32}\b/g, "[redacted]");
 }
 
-const BIND = bindHost();
+const BIND = HOSTED ? "0.0.0.0" : bindHost();
 noteBound(BIND);
 server.listen(PORT, BIND, () => {
-  console.log(`workmates server on http://127.0.0.1:${PORT}`);
-  if (BIND !== "127.0.0.1") {
+  console.log(`workmates server on http://${BIND}:${PORT}`);
+  if (HOSTED) {
+    console.log("[workmates] cloud server; desktop connections require the server access key");
+  } else if (BIND !== "127.0.0.1") {
     console.log(`[workmates] paired devices may reach this machine on port ${PORT}`);
   }
 });

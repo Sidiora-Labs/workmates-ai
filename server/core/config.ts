@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { InstanceConfigMap } from "./contracts.ts";
@@ -64,7 +64,9 @@ export interface AppConfig {
   instances?: InstanceConfigMap;
 }
 
-export const DATA_DIR = join(homedir(), ".workmates");
+export const DATA_DIR = process.env.WORKMATES_DATA_DIR
+  ? resolve(process.env.WORKMATES_DATA_DIR)
+  : join(homedir(), ".workmates");
 export const EVENTS_DIR = join(DATA_DIR, "events");
 export const NATIVE_DIR = join(DATA_DIR, "native");
 export const SKILLS_DIR = join(DATA_DIR, "skills");
@@ -83,6 +85,7 @@ export const APP_VERSION: string = (() => {
 })();
 
 function adoptFormerWorkspace() {
+  if (process.env.WORKMATES_DATA_DIR) return;
   const former = join(homedir(), ".bloks");
   if (existsSync(DATA_DIR) || !existsSync(former)) return;
   try {

@@ -66,6 +66,7 @@ export async function intakeFiles<T extends IncomingFile>(
   handlers: {
     pathOf: (file: T) => string;
     uploadImage: (file: T) => Promise<ImageAttachment | null>;
+    uploadFile?: (file: T) => Promise<FileAttachment>;
   },
 ): Promise<{ attachments: Attachment[]; refused: string | null }> {
   const attachments: Attachment[] = [];
@@ -78,6 +79,11 @@ export async function intakeFiles<T extends IncomingFile>(
       } catch (error) {
         complaints.push(`${file.name || "image"}: ${error instanceof Error ? error.message : "upload failed"}`);
       }
+      continue;
+    }
+    if (handlers.uploadFile) {
+      try { attachments.push(await handlers.uploadFile(file)); }
+      catch (error) { complaints.push(`${file.name}: ${error instanceof Error ? error.message : "upload failed"}`); }
       continue;
     }
     let path = "";
@@ -122,6 +128,18 @@ export async function uploadImageAttachment(file: File): Promise<ImageAttachment
     bytes: saved.bytes,
     mime: saved.mime,
   };
+}
+
+export async function uploadFileAttachment(file: File): Promise<FileAttachment> {
+  if (file.size > 25 * 1024 * 1024) throw new Error("files top out at 25 MB");
+  const response = await fetch("/api/attachments/file", {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream", "x-workmates-file-name": encodeURIComponent(file.name) },
+    body: file,
+  });
+  const saved = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(saved?.error || "upload failed");
+  return fileAttachment(file.name, saved.path, saved.bytes);
 }
 
 export function composeOutgoing(text: string, attachments: Attachment[]): string {
