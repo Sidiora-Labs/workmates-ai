@@ -32,9 +32,9 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: pnpm test
-
       - run: pnpm build
+
+      - run: pnpm test
 
       - name: Check for stray build output
         run: |

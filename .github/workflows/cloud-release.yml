@@ -1,0 +1,127 @@
+name: Cloud release
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: paxeer/workmates-ai
+
+jobs:
+  publish:
+    name: Build, verify and publish cloud release
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm typecheck
+      - run: pnpm build:web
+      - run: pnpm test
+
+      - name: Name this release
+        id: release
+        run: |
+          echo "tag=cloud-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the server and web client
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: workmates-cloud:check
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify the actual container
+        run: python3 scripts/check-cloud-image.py workmates-cloud:check
+
+      - name: Package the cloud release
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          mkdir -p cloud-release/package
+          container=$(docker create workmates-cloud:check)
+          trap 'docker rm "$container" >/dev/null' EXIT
+          for path in dist-server dist package.json LICENSE; do
+            docker cp "$container:/app/$path" cloud-release/package/
+          done
+          tar -czf "cloud-release/workmates-${RELEASE_TAG}-linux-amd64.tar.gz" -C cloud-release/package .
+          rm -rf cloud-release/package
+
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Publish the verified image
+        id: image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
+            ${{ env.IMAGE }}:${{ steps.release.outputs.tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release.outputs.tag }}
+          cache-from: type=gha
+
+      - name: Update latest from the current main commit
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
+          else
+            echo "A newer main push exists; this release keeps its own versioned tags."
+          fi
+
+      - name: Publish release assets and image digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          printf '%s@%s\n' "$IMAGE" "$DIGEST" > cloud-release/container-image.txt
+          (cd cloud-release && sha256sum ./*.tar.gz container-image.txt > SHA256SUMS)
+          cat > cloud-release/notes.md <<EOF
+          Cloud server and web/PWA client built from commit $GITHUB_SHA.
+
+          Container: $IMAGE:$RELEASE_TAG
+          Exact image: $IMAGE@$DIGEST
+
+          The archive requires Node.js 22 or newer. Set WORKMATES_HOSTED=1,
+          WORKMATES_SERVER_TOKEN, WORKMATES_DATA_DIR and WORKMATES_STATIC_DIR,
+          then run node dist-server/index.js. Preserve the data directory on upgrades.
+
+          Desktop installers are published by the separate desktop release workflows.
+          EOF
+          gh release create "$RELEASE_TAG" \
+            --target "$GITHUB_SHA" \
+            --title "Workmates cloud $RELEASE_TAG" \
+            --prerelease --latest=false \
+            --notes-file cloud-release/notes.md \
+            cloud-release/*.tar.gz cloud-release/container-image.txt cloud-release/SHA256SUMS

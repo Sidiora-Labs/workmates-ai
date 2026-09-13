@@ -87,6 +87,16 @@ docker pull paxeer/workmates-ai:1.0.0-cloud.20260913
 
 See [cloud server setup](docs/CLOUD_SERVER.md) for manual deployment, persistent storage, backups, and device connections.
 
+### Automatic cloud releases
+
+Every branch or tag push runs [Cloud release](.github/workflows/cloud-release.yml): typecheck, tests, container build, and a real container startup check before publishing to Docker Hub. Each successful run creates a GitHub cloud prerelease with the server/web archive, checksums, and exact container digest.
+
+- `paxeer/workmates-ai:cloud-<run-id>-<attempt>` identifies a release.
+- `paxeer/workmates-ai:sha-<full-commit-sha>` identifies its source commit.
+- `paxeer/workmates-ai:latest` follows the current successful `main` commit.
+
+The workflow uses repository Actions secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a Docker Hub access token with write access to this image). GitHub releases use the built-in `GITHUB_TOKEN`. Forks must configure their own registry credentials and change the workflow's `IMAGE` value. Cloud prereleases leave the desktop release channel intact. Existing Railway installations upgrade by selecting a published tag or digest and redeploying with their existing `/data` volume.
+
 ## Engines and integrations
 
 Workmates supports agent CLIs such as Claude Code, Codex, Gemini CLI, OpenCode, and Pi, along with OpenRouter, other supported API providers, custom OpenAI-compatible endpoints, and Ollama.
