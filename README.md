@@ -59,7 +59,7 @@ For the Electron window, keep both development servers running and open a third 
 pnpm dev:desktop
 ```
 
-The repository includes packaging targets for macOS, Linux, and Windows. Native integrations and packaging prerequisites differ by platform; see [release instructions](docs/RELEASING.md) and [packaging configuration](electron-builder.yml). Check the assets attached to a release for the builds actually available.
+The repository includes packaging targets for macOS, Linux, and Windows. Native integrations and packaging prerequisites differ by platform; see the [packaging configuration](electron-builder.yml) and [build workflows](.github/workflows). Check the assets attached to a release for the builds actually available.
 
 ## Engines and integrations
 
