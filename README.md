@@ -68,7 +68,7 @@ The repository includes packaging targets for macOS, Linux, and Windows. Native 
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/workmates)
 
-Deploy the prebuilt Workmates image with one click. The template creates one server, an HTTPS address, a persistent 1 GB volume at `/data`, and a unique access key. No local build or container-registry login is needed.
+Deploy the prebuilt Workmates image with one click. The template creates one server, an HTTPS address, a persistent 50 GB volume at `/data`, and a unique access key. No local build or container-registry login is needed.
 
 1. Click **Deploy on Railway** and deploy the template to your workspace.
 2. In the deployed **Workmates** service, open **Variables** and copy `WORKMATES_SERVER_TOKEN`.
