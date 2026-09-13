@@ -20,6 +20,9 @@ This repository contains the React web/PWA interface, Node.js agent server, and 
 
 [Releases](https://github.com/Sidiora-Labs/workmates-ai/releases) · [Architecture](docs/ARCHITECTURE.md) · [Contributing](CONTRIBUTING.md) · [Issues](https://github.com/Sidiora-Labs/workmates-ai/issues)
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/workmates)
+
+
 ## What you can do
 
 - **Work with a team.** Create agents with distinct roles and skills, chat privately, or coordinate them in rooms with ordered turns and handoffs.

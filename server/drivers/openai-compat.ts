@@ -50,7 +50,6 @@ export function chooseModels(spec: ProviderSpec, ids: string[]): ModelCatalog | 
   };
 }
 
-const MAX_TOOL_ROUNDS = 10;
 const ASK_TIMEOUT_MS = 15 * 60_000;
 const UNANSWERED =
   "Nobody answered in time. Use your best judgment and continue.";
@@ -166,12 +165,13 @@ function toolSchemas(hasComputer: boolean, hasSandbox: boolean) {
 async function boxExec(
   computer: { boxId: string; token: string },
   command: string,
+  signal: AbortSignal,
 ): Promise<string> {
   const res = await fetch(`${BOX_API}/boxes/${computer.boxId}/commands`, {
     method: "POST",
     headers: { authorization: `Bearer ${computer.token}`, "content-type": "application/json" },
     body: JSON.stringify({ command: command.slice(0, 4000) }),
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]),
   });
   const body: any = await res.json().catch(() => null);
   if (!res.ok) return `the computer refused: HTTP ${res.status}`;
@@ -179,12 +179,12 @@ async function boxExec(
   return `exit ${body?.exitCode ?? "?"}\n${String(body?.stdout ?? "").slice(-5000)}${stderr}`;
 }
 
-function sandboxExec(handle: { runtime: string; name: string }, command: string): Promise<string> {
+function sandboxExec(handle: { runtime: string; name: string }, command: string, signal: AbortSignal): Promise<string> {
   return new Promise((resolve) => {
     execFile(
       handle.runtime,
       ["exec", handle.name, "sh", "-lc", command.slice(0, 4000)],
-      { timeout: 120_000, maxBuffer: 4_000_000 },
+      { timeout: 120_000, maxBuffer: 4_000_000, signal },
       (error, stdout, stderr) => {
         const code = error ? ((error as any).code ?? 1) : 0;
         const tail = stderr ? `\n[stderr]\n${String(stderr).slice(-1500)}` : "";
@@ -352,7 +352,7 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
         const res = await fetch(`${config.url}/chat/completions`, {
           method: "POST",
           headers: headers(),
-          body: JSON.stringify({ model, messages, tools, stream: false }),
+          body: JSON.stringify({ model, messages, ...(tools.length ? { tools } : {}), stream: false }),
           signal,
         });
         if (!res.ok) {
@@ -385,7 +385,7 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
         const connectorTools = new Set<string>();
         if (connectors) {
           try {
-            for (const tool of await listMcpTools(connectors)) {
+            for (const tool of await listMcpTools(connectors, signal)) {
               connectorTools.add(tool.name);
               tools.push({
                 type: "function",
@@ -401,15 +401,26 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
         }
         let usageTotal = { input: 0, output: 0 };
 
-        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-          const { message, usage } = await completeRaw(messages, model, tools, signal);
+        let requestedFinal = false;
+        while (true) {
+          signal.throwIfAborted();
+          const { message, usage } = await completeRaw(messages, model, requestedFinal ? [] : tools, signal);
+          signal.throwIfAborted();
+          appendNative(threadId, { dir: "in", source: `${spec.kind}.chat.completions`, msg: { message, usage } });
           if (usage) {
             usageTotal = { input: usageTotal.input + usage.input, output: usageTotal.output + usage.output };
           }
           const calls: any[] = Array.isArray(message.tool_calls) ? message.tool_calls : [];
 
+          if (requestedFinal && calls.length) throw new Error("The provider did not return a final response. Your completed tool work is retained.");
           if (!calls.length) {
             const text = typeof message.content === "string" ? message.content : "";
+            if (!text.trim()) {
+              if (requestedFinal) throw new Error("The provider returned an empty final response. Your completed tool work is retained.");
+              requestedFinal = true;
+              messages.push({ role: "user", content: "Provide your final response now, using the tool results above. Explain the outcome and anything still incomplete. Do not call more tools." });
+              continue;
+            }
             if (text.trim()) {
               emit({ ...base(threadId, turnId), type: "content.delta", streamKind: "assistant_text", delta: text });
               emit({ ...base(threadId, turnId), type: "item.completed", itemType: "assistant_text", text });
@@ -422,6 +433,7 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
 
           messages.push(message);
           for (const call of calls) {
+            signal.throwIfAborted();
             const name = call.function?.name ?? "tool";
             let args: any = {};
             try {
@@ -437,6 +449,7 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
               title: name === "ask_user" ? "ask_user" : `${name}: ${String(args.command ?? args.url ?? "").slice(0, 60)}`,
             });
 
+            signal.throwIfAborted();
             let result: string;
             let ok = true;
             if (name === "ask_user") {
@@ -446,10 +459,11 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
             } else if (name === "request_secret") {
               result = await requestSecret(threadId, turnId, args);
             } else if (name === "sandbox_exec" && sandbox) {
-              result = await sandboxExec(sandbox, String(args.command ?? ""));
+              result = await sandboxExec(sandbox, String(args.command ?? ""), signal);
+              ok = result.startsWith("exit 0\n");
             } else if (name === "computer_exec" && computer) {
-              result = await boxExec(computer, String(args.command ?? ""));
-              ok = !result.startsWith("the computer refused");
+              result = await boxExec(computer, String(args.command ?? ""), signal);
+              ok = result.startsWith("exit 0\n");
             } else if (name === "open_url" && computer) {
               const url = String(args.url ?? "");
               if (/^https?:\/\//.test(url)) {
@@ -458,6 +472,7 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
                   computer,
                   "export DISPLAY=${DISPLAY:-:0}; " +
                     `(google-chrome '${quoted}' || chromium '${quoted}' || xdg-open '${quoted}') >/dev/null 2>&1 & sleep 2; echo opened`,
+                  signal,
                 );
               } else {
                 result = "only http(s) URLs can be opened";
@@ -465,7 +480,7 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
               }
             } else if (connectors && connectorTools.has(name)) {
               try {
-                result = await callMcpTool(connectors, name, args);
+                result = await callMcpTool(connectors, name, args, signal);
               } catch (error) {
                 result = `the connector call failed: ${error instanceof Error ? error.message : "unknown error"}`;
                 ok = false;
@@ -475,11 +490,13 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
               ok = false;
             }
 
+            signal.throwIfAborted();
             emit({ ...base(threadId, turnId), type: "item.completed", itemType: "tool", itemId: call.id, ok });
-            messages.push({ role: "tool", tool_call_id: call.id, content: result });
+            const outcome = { role: "tool", tool_call_id: call.id, content: result };
+            messages.push(outcome);
+            appendNative(threadId, { dir: "in", source: `${spec.kind}.tool`, msg: outcome });
           }
         }
-        throw new Error("the turn used its whole tool budget without finishing; interrupted");
       };
 
       const askUser = (threadId: string, turnId: string, args: any): Promise<string> => {
@@ -595,9 +612,16 @@ export function openAiCompatDriver(spec: ProviderSpec): ProviderDriver<CompatCon
         const abort = new AbortController();
         const asks = new Map<string, (answer: string) => void>();
         active.set(threadId, { abort, turnId, asks });
+        abort.signal.addEventListener("abort", () => {
+          for (const settle of [...asks.values()]) settle("The user stopped this turn.");
+        }, { once: true });
 
+        const system = [
+          turn.system,
+          spec.tools ? "Continue the authorized task across as many tool rounds as needed. Complete the work before ending your turn. Your final response must explain the result and any real blockers or unfinished work. Do not end with only a progress update or an offer to continue work already requested." : "",
+        ].filter(Boolean).join("\n\n");
         const messages = [
-          ...(turn.system ? [{ role: "system", content: turn.system }] : []),
+          ...(system ? [{ role: "system", content: system }] : []),
           ...(turn.transcript ?? []).map((m) => ({
             role: m.role === "assistant" ? "assistant" : "user",
             content: m.text,

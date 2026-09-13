@@ -31,7 +31,7 @@ export interface McpAccess {
   url?: string;
 }
 
-async function mcpRequest(access: McpAccess, method: string, params: unknown): Promise<string> {
+async function mcpRequest(access: McpAccess, method: string, params: unknown, signal?: AbortSignal): Promise<string> {
   const response = await fetch(access.url || MCP_ENDPOINT, {
     method: "POST",
     headers: {
@@ -40,7 +40,7 @@ async function mcpRequest(access: McpAccess, method: string, params: unknown): P
       "x-consumer-api-key": access.key,
     },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-    signal: AbortSignal.timeout(30_000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
   });
   if (!response.ok) throw new Error(`connector service: HTTP ${response.status}`);
   return response.text();
@@ -61,8 +61,9 @@ function mcpResult(body: string): any {
 
 export async function listMcpTools(
   access: McpAccess,
+  signal?: AbortSignal,
 ): Promise<Array<{ name: string; description: string; inputSchema: unknown }>> {
-  const result = mcpResult(await mcpRequest(access, "tools/list", {}));
+  const result = mcpResult(await mcpRequest(access, "tools/list", {}, signal));
   const tools = Array.isArray(result?.tools) ? result.tools : [];
   return tools
     .filter((tool: any) => typeof tool?.name === "string")
@@ -73,9 +74,9 @@ export async function listMcpTools(
     }));
 }
 
-export async function callMcpTool(access: McpAccess, name: string, args: unknown): Promise<string> {
+export async function callMcpTool(access: McpAccess, name: string, args: unknown, signal?: AbortSignal): Promise<string> {
   const result = mcpResult(
-    await mcpRequest(access, "tools/call", { name, arguments: args ?? {} }),
+    await mcpRequest(access, "tools/call", { name, arguments: args ?? {} }, signal),
   );
   const text = (result?.content ?? [])
     .filter((part: any) => part?.type === "text" && typeof part.text === "string")
