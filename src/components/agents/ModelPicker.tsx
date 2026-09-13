@@ -74,7 +74,7 @@ export function ModelPicker({ bot, className }: { bot: Bot; className?: string }
       {open && (
         <div
           data-model-picker-content
-          className="absolute right-0 top-full z-30 mt-1.5 flex w-[360px] max-w-[92vw] max-h-[min(480px,70dvh)] origin-top-right animate-pop-in overflow-hidden rounded-[10px] bg-popover/85 shadow-[0_12px_32px_-8px_var(--shadow-color),0_0_0_0.5px_var(--border),0_0_0_1px_var(--shadow-color)] backdrop-blur-2xl backdrop-saturate-150"
+          className="fixed inset-x-3 top-14 z-30 mt-1.5 flex w-auto max-w-[calc(100vw-24px)] md:absolute md:inset-x-auto md:right-0 md:top-full md:w-[360px] md:max-w-[92vw] max-h-[min(480px,70dvh)] origin-top-right animate-pop-in overflow-hidden rounded-[10px] bg-popover/85 shadow-[0_12px_32px_-8px_var(--shadow-color),0_0_0_0.5px_var(--border),0_0_0_1px_var(--shadow-color)] backdrop-blur-2xl backdrop-saturate-150"
         >
           <div className="flex shrink-0 flex-col gap-0.5 overflow-y-auto border-r bg-muted/40 p-1.5">
             {[...state.instances].sort(byUsable).map((instance) => {

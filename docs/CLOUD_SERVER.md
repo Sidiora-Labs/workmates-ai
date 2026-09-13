@@ -2,7 +2,17 @@
 
 The cloud server runs agents and owns workspace data. Use the installed Electron app on your computer and the hosted web app on your phone; both read and update that same workspace. Local desktop mode remains available as a separate workspace.
 
-## Railway setup
+## Railway template
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/workmates)
+
+The template deploys `paxeer/workmates-ai:1.0.0-cloud.20260913`, creates a 1 GB persistent volume at `/data`, exposes port 8080 over HTTPS, and generates a separate 64-character `WORKMATES_SERVER_TOKEN` for each installation. It uses the `/api/health` check and one server instance.
+
+After deployment, copy `WORKMATES_SERVER_TOKEN` from the Workmates service's Variables tab, open its generated domain, and sign in. Add your own model providers in Settings. For a cloud computer, connect Box; local desktop control and Local VM require a local Workmates server.
+
+The public image is on [Docker Hub](https://hub.docker.com/r/paxeer/workmates-ai). The versioned release and `latest` are available for Linux amd64. To update an installation, back up `/data`, select the desired published image version in Railway's service source, and redeploy with the same volume. An image update does not require a new workspace or access key.
+
+## Manual Railway setup
 
 1. Create a service from this repository using the root `Dockerfile`. It builds the server and web client together. The included `railway.json` selects the Dockerfile and `/api/health` health check.
 2. Attach a persistent volume at `/data`. Keep one replica for this file-backed workspace.

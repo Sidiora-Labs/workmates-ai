@@ -1,0 +1,42 @@
+{
+  "templateId": "70065a8f-8293-4702-98fa-640fae7783e6",
+  "url": "https://railway.com/deploy/workmates",
+  "imageDigest": "sha256:97657d3e13abd28b62a7cdfceef98156c33e552920343d3d3156aad33dbfcbbc",
+  "serializedConfig": {
+    "buckets": {},
+    "services": {
+      "3bd6191f-458b-4494-a84e-da98b8125e6d": {
+        "deploy": {
+          "healthcheckPath": "/api/health",
+          "restartPolicyMaxRetries": 3,
+          "restartPolicyType": "ON_FAILURE",
+          "startCommand": null
+        },
+        "icon": null,
+        "name": "Workmates",
+        "networking": {
+          "serviceDomains": {
+            "<hasDomain>:8080": {
+              "port": 8080
+            }
+          }
+        },
+        "source": {
+          "image": "paxeer/workmates-ai:1.0.0-cloud.20260913"
+        },
+        "variables": {
+          "WORKMATES_SERVER_TOKEN": {
+            "defaultValue": "${{secret(64)}}",
+            "isOptional": false
+          }
+        },
+        "volumeMounts": {
+          "3bd6191f-458b-4494-a84e-da98b8125e6d": {
+            "mountPath": "/data",
+            "sizeMB": 1024
+          }
+        }
+      }
+    }
+  }
+}

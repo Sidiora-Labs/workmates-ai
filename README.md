@@ -63,7 +63,26 @@ The repository includes packaging targets for macOS, Linux, and Windows. Native 
 
 ## Cloud server with desktop and mobile access
 
-Host one workspace on Railway, connect the desktop app to its address, and open the same address on your phone. The browser client can be installed on your home screen; both clients share agents, conversations, live updates, and uploaded files. See the [cloud server setup](docs/CLOUD_SERVER.md) for the volume, access key, and connection steps.
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/workmates)
+
+Deploy the prebuilt Workmates image with one click. The template creates one server, an HTTPS address, a persistent 1 GB volume at `/data`, and a unique access key. No local build or container-registry login is needed.
+
+1. Click **Deploy on Railway** and deploy the template to your workspace.
+2. In the deployed **Workmates** service, open **Variables** and copy `WORKMATES_SERVER_TOKEN`.
+3. Open the service's generated URL and sign in with that key.
+4. Connect OpenRouter, Centra, or another API provider in **Settings**, then start chatting. Connect Box if you want a cloud computer.
+
+Open the same URL on your phone and choose **Install app** or **Add to Home Screen**. In the desktop app, choose **Cloud server** and enter the URL and access key. Both clients share agents, conversations, live updates, and uploaded files.
+
+The public container is available on [Docker Hub](https://hub.docker.com/r/paxeer/workmates-ai):
+
+```sh
+docker pull paxeer/workmates-ai:1.0.0-cloud.20260913
+```
+
+`paxeer/workmates-ai:latest` tracks the latest published cloud image; the template uses the versioned release. The image includes the server and web/PWA client for Linux amd64. Each deployment starts with a fresh workspace and brings its own provider accounts. Railway hosting and connected provider usage are billed by those services. Keep one server replica for this file-backed workspace.
+
+See [cloud server setup](docs/CLOUD_SERVER.md) for manual deployment, persistent storage, backups, and device connections.
 
 ## Engines and integrations
 
