@@ -20,7 +20,7 @@ This repository contains the React web/PWA interface, Node.js agent server, and 
 
 [Releases](https://github.com/Sidiora-Labs/workmates-ai/releases) · [Architecture](docs/ARCHITECTURE.md) · [Contributing](CONTRIBUTING.md) · [Issues](https://github.com/Sidiora-Labs/workmates-ai/issues)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/workmates)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/workmates?utm_medium=integration&utm_source=template&utm_campaign=generic)
 
 
 ## What you can do
@@ -66,7 +66,7 @@ The repository includes packaging targets for macOS, Linux, and Windows. Native 
 
 ## Cloud server with desktop and mobile access
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/workmates)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/workmates?utm_medium=integration&utm_source=template&utm_campaign=generic)
 
 Deploy the prebuilt Workmates image with one click. The template creates one server, an HTTPS address, a persistent 50 GB volume at `/data`, and a unique access key. No local build or container-registry login is needed.
 
